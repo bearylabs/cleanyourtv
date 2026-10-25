@@ -708,7 +708,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             libraryFromTopBar = true;   // closing it goes back to this button, not to the pill after the last row
         });
         btnLibraryTop.setVisibility(cfg.libraryButton && cfg.appLibrary ? View.VISIBLE : View.GONE);
-        addTopBarApps(cfg.topBarApps);
+        addTopBarApps(cfg.topBarApps, cfg.launchActions);
         iconOnlyButtons = cfg.iconOnlyButtons;
         topMenu = cfg.topMenu;
         wifiIconOnly = iconOnlyButtons && cfg.wifiLabelWidth <= 0;
@@ -2265,7 +2265,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * Puts each top_bar_apps app in the top bar as a round pill with the app's own logo, left of the network pill.
      * The logo keeps its colours: the pill style's tint, which turns the other icons white, is cleared.
      */
-    private void addTopBarApps(List<String> packages) {
+    private void addTopBarApps(List<String> packages, Map<String, String> launchActions) {
         ViewGroup bar = findViewById(R.id.topButtons);
         PackageManager pm = getPackageManager();
         int size = Math.round(22 * density);
@@ -2273,6 +2273,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             Intent launch = pm.getLeanbackLaunchIntentForPackage(pkg);
             if (launch == null) launch = pm.getLaunchIntentForPackage(pkg);
             if (launch == null) continue;   // not installed, or disabled
+            // Honor the same configured actions as tiles. On Fire TV the default
+            // Appstore launch opens the app grid; FEATURED_LAUNCH opens the actual store.
+            String action = launchActions.get(pkg);
+            if (action != null) {
+                Intent custom = new Intent(action).setPackage(pkg);
+                if (pm.resolveActivity(custom, 0) != null) launch = custom;
+            }
             Drawable logo;
             CharSequence label;
             try {
