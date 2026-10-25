@@ -5,7 +5,10 @@ import android.app.ActivityOptions;
 import android.app.ActivityManager;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.Handler;
@@ -35,6 +38,19 @@ final class FireHomeRedirect {
     private boolean waitingForDraw;
     private final Runnable timeout = this::hide;
     private final Runnable dispatch = this::launch;
+    private final Runnable homeRequest = this::request;
+    private final BroadcastReceiver homePress = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            if (!isShortHomeSignal(intent.getAction(), intent.getStringExtra("reason"))) return;
+            // Fire OS consumes HOME before accessibility sees a key. Its close-dialogs
+            // broadcast arrives before Amazon's window event (several seconds late after RTL+).
+            // Let the firmware enqueue Home first so moveToFront cannot race ahead of it.
+            android.util.Log.i("FireHomeRedirect", "system HOME signal");
+            handler.removeCallbacks(homeRequest);
+            handler.postDelayed(homeRequest, 150);
+        }
+    };
+    private boolean homePressRegistered;
 
     FireHomeRedirect(AccessibilityService service) {
         this.service = service;
@@ -61,6 +77,21 @@ final class FireHomeRedirect {
         windows.addView(view, params);
         cover = view;
         active = this;
+        try {
+            IntentFilter filter = new IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
+            // The flags overload exists since API 26 (our minSdk); pre-33 systems
+            // ignore the newer export bit. Newer systems restrict delivery to this app/system.
+            service.registerReceiver(homePress, filter, Context.RECEIVER_NOT_EXPORTED);
+            homePressRegistered = true;
+        } catch (SecurityException unavailable) {
+            // Vendor restrictions must not break the existing accessibility-window fallback.
+            android.util.Log.w("FireHomeRedirect", "HOME signal unavailable", unavailable);
+        }
+    }
+
+    /** Only a short HOME press, never Back, recents, global actions or a long HOME press. */
+    static boolean isShortHomeSignal(String action, String reason) {
+        return Intent.ACTION_CLOSE_SYSTEM_DIALOGS.equals(action) && "homekey".equals(reason);
     }
 
     void request() {
@@ -135,10 +166,16 @@ final class FireHomeRedirect {
 
     /** Do not pull the user back if another app or a settings window opened meanwhile. */
     void cancel() {
+        handler.removeCallbacks(homeRequest);
         hide();
     }
 
     void destroy() {
+        handler.removeCallbacks(homeRequest);
+        if (homePressRegistered) {
+            service.unregisterReceiver(homePress);
+            homePressRegistered = false;
+        }
         hide();
         if (cover != null) {
             windows.removeView(cover);

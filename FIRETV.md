@@ -8,6 +8,8 @@ Original base: `eb0131a32fd8567086f39002f1782f7c1b078ca6` from https://github.co
 
 All 407 previously pending upstream commits through `575d73f0` have been merged. The resulting APK is a **test candidate, not yet tested on a physical Fire TV**. The original known-device APK remains separately pinned in the private setup repository. See its `TESTING.md` for the later explicitly approved update test.
 
+Follow-up RC2 adds a Fire-TV-only receiver for `CLOSE_SYSTEM_DIALOGS` with reason `homekey`, because Amazon's window-state event arrived several seconds late after RTL+ in device diagnostics. It schedules the existing redirect after 150 ms; window detection remains the fallback, with no polling or screen-content access. Long-HOME/other dialog reasons are ignored. RC2 is installed on the first device; receipt of the synthetic signal, window fallback, YouTube return and native settings were checked, but the real remote HOME test is still pending.
+
 The HomeKeyService merge retains both the Fire TV adapter and upstream's power-on, standby opt-in and Android 10+ stock-home handling. Fire TV continues to use its adapter; the upstream launch path is kept for other platforms. New layout/library behavior switches retain their upstream defaults: no silent layout change, no automatic TCL standby workaround. Optional add-ons are available as source but are not bundled or installed with the launcher.
 
 - Opt-in Amazon Home redirect: reuse our own task, with an alarm fallback and a black accessibility overlay that fails open after four seconds. Stale window events are ignored. Attribution: `launcher/DUMBTV-LICENSE.txt`.
