@@ -10,11 +10,19 @@ Set TV_HOST to the TV's IP (or IP:port). Usage:
     tv.py --push <local> <remote>      small files only (see b64push.py for larger ones)
     tv.py --pull <remote> <local>
     tv.py --reboot                     return once the reboot request is accepted; the TV may still be restarting
+    tv.py --help                       this text; needs neither the venv nor a TV
 """
 import os
 import re
 import sys
 import time
+
+# -h/--help before the adb_shell imports and before TV_HOST is read: the usage is the first thing a
+# reader types at a script they do not know, and it needs neither the venv nor a TV. The TV_HOST check
+# below exits at import time, so a flag handled after it could never print anything but that error.
+if sys.argv[1:2] and sys.argv[1] in ("-h", "--help"):
+    print((__doc__ or "").strip())
+    sys.exit(0)
 
 from adb_shell.adb_device import AdbDeviceTcp
 from adb_shell.auth.keygen import keygen
@@ -106,6 +114,7 @@ USAGE = """usage:
     tv.py --pull <remote> <local>
     tv.py --batch < commands.txt
     tv.py --reboot
+    tv.py --help
     tv.py <shell command...>
 """
 # Arguments each known flag takes, the flag included. The shell branch takes anything, so a flag
@@ -127,12 +136,16 @@ def check_arity(args):
     """Reject a known flag with the wrong argument count before connecting.
 
     Without this, `--screenshot` with a destination missing falls through to the shell branch and
-    the TV tries to run `--screenshot` as a command."""
+    the TV tries to run `--screenshot` as a command. The same goes for a flag this script does not
+    have at all: `--proob` used to be sent to the TV, whose shell answered "inaccessible or not
+    found" while tv.py exited 0, so a mistyped flag looked like a command that ran."""
     if args and args[0] in ARITY and len(args) != ARITY[args[0]]:
         sys.stderr.write(USAGE)
         sys.exit(2)
     if args and args[0] == "--screenshot":
         screenshot_args(args[1:])
+    elif args and args[0].startswith("-") and args[0] not in ARITY:
+        usage_error(f"not a flag of tv.py: {args[0]!r}")
 
 
 def screenshot_args(rest):

@@ -1,5 +1,6 @@
-# Sony BRAVIA 4K VH2 (device BRAVIA_VH2, KD-55X80J, MediaTek), EU firmware
-# Android 12 (Google TV, API 31), build BRAVIA_VH2_EU-user 12 STT2.230505.001.S136 682241
+# Sony BRAVIA 4K VH2 (device BRAVIA_VH2, KD-55X80J / XR-65A83J, MediaTek), EU firmware
+# Android 12 (Google TV, API 31), build BRAVIA_VH2_EU-user 12 STT2.230505.001.S136 682241;
+# the XR-65A83J reports BRAVIA_VH2_M_EU-user with the same build number
 #
 # Apply:   TV_HOST=<tv ip> tools/disable.sh examples/sony-bravia-4k-vh2/debloat.txt
 # Undo:    TV_HOST=<tv ip> tools/restore.sh examples/sony-bravia-4k-vh2/debloat.txt com.google.android.apps.tv.launcherx
@@ -44,6 +45,39 @@
 # gear and app buttons were all still answered by Sony's own firmware (checked on the real remote, not
 # with injected keys), so INPUT_KEY_SERVICE was left off and key auto-repeat kept. On Ethernet, so the
 # setupwraith Wi-Fi check did not apply. Applied over one evening, not lived with for days.
+#
+# Third unit, Asia-Pacific firmware, bought in India: KD-55X80J, build
+# BRAVIA_VH2_PA-user 12 STT2.230505.001.S136 682241, the same build number again. It behaves like the UC
+# unit, not the EU one:
+#
+#  - launcherx registers HOME at priority=2 here as well, so it was disabled once the new launcher was
+#    installed, together with its Sony companion com.sony.dtv.launcherxcustomizer (commented lines at
+#    the end). Home has stayed on the new launcher since.
+#  - Factory-disabled on this unit: only com.sony.dtv.b2b.vendorprotocol, com.sony.dtv.b2b.softap and
+#    com.sony.dtv.kenhchonloc. promos and sonyselect ship enabled and were disabled.
+#  - It carries extra preloads the list above didn't cover: Sony's tab, partner auto-installs, usage
+#    agents and India-market streaming apps. They are in the "Asia-Pacific unit" groups below; on a set
+#    that doesn't have them the line just fails and the rest of the list carries on.
+#  - Left enabled and untested here: seeds.iot, seeds.iot.remotestart, youtube.tvmusic.
+#  - Kept by the owner's choice: Assistant, Chromecast built-in, firmware updates.
+#  - On Wi-Fi: the TV stayed on its network after setupwraith was disabled.
+#
+# Lived with since 19 October 2026 with a custom launcher (its own app, not this repo's); nothing has
+# broken in daily use (owner's report).
+# The commented "one day" group at the end was disabled four days later and has only had a day so far.
+
+# Fourth unit, EU M variant: hardware SKU XR-65A83J, product BRAVIA_VH2_M_EU, Android 12/API 31,
+# build BRAVIA_VH2_M_EU-user 12 STT2.230505.001.S136 682241. This unit behaved like the UC/PA units
+# for Home handover: after the replacement launcher was installed, setupwraith and launcherx were both
+# disabled, and Home stayed on the replacement launcher. HDMI/input services, Bluetooth, Wi-Fi, Assistant,
+# Chromecast and firmware updates were kept. The owner-selected apps below were disabled and lived with
+# since 19 October 2026; they are choices, not requirements of the VH2 platform.
+
+# Fourth unit: owner-selected streaming/social apps (off by choice there; uncomment the ones you don't use)
+# com.spotify.tv.android
+# com.aspiro.tidal
+# com.curiosity.curiositystream.androidtv
+# com.facebook.katana
 
 # ACR viewing tracker
 tv.samba.ssm                                   # Samba TV fingerprints what's on screen
@@ -74,11 +108,40 @@ com.sony.dtv.seeds.iot
 com.sony.dtv.seeds.iot.remotestart
 com.sony.dtv.b2b.vendorprotocol                # hotel/B2B control protocol
 
+# Asia-Pacific unit: Sony agents and promo surfaces not covered above
+com.sony.dtv.sonytab                           # Sony tab row on the Google TV home
+android.autoinstalls.config.sony.bravia        # partner apps pushed in after setup
+com.sony.dtv.lastaccess                        # usage agent
+com.sony.dtv.usercontext                       # usage agent
+com.vewd.core.integration.dia                  # Vewd (Opera TV) app-store integration
+com.sony.dtv.helpguidecontents                 # help guide content
+com.sony.dtv.livingfit                         # Living Decor / ambient service
+
+# Asia-Pacific unit: preloaded apps, off by the owner's choice
+com.sony.dtv.osat.music                        # music player; re-enable to play music from USB
+com.amazon.music.tv
+com.gaana.fire_tv                              # Gaana
+com.appgeneration.itunerfree                   # iTuner radio
+com.sonypicturescore                           # Sony Pictures Core (factory-disabled on the EU unit)
+com.google.android.videos                      # Google TV Movies & TV
+
+# Asia-Pacific unit, one day only so far: disabled on the third unit four days after the rest, no
+# problem yet. Uncomment to try them.
+# com.sony.dtv.b2b.hotelmode                   # hotel/pro mode
+# com.sony.dtv.b2b.rs232csupport               # RS-232C control for hotel installs
+# com.sony.dtv.accessibility.tutorial
+# com.sony.dtv.gestureapp                      # BRAVIA CAM gestures (no camera on the X80J)
+# com.sonyericsson.dlna                        # DLNA media server/renderer; Chromecast is separate
+# com.sony.huey.dlna.module
+# com.sony.huey.dlna.renderersettings
+
 # Google TV setup wizard: claims HOME and takes over once the stock launcher is disabled
 com.google.android.tungsten.setupwraith
 
-# Stock Google TV launcher. Left ENABLED on the EU unit, where Home resolved to the new launcher by
-# itself. Uncomment on UC firmware, where launcherx outranks set-home-activity at priority=2 and Home
-# stays on it otherwise. Only ever with the replacement launcher installed and claiming HOME first:
+# Stock Google TV launcher. Left ENABLED on the original EU unit, where Home resolved to the new launcher
+# by itself. Uncomment on UC, PA and the XR-65A83J M_EU unit, where launcherx outranks set-home-activity
+# at priority=2 and Home stays on it otherwise. Only ever with the replacement launcher installed and
+# claiming HOME first:
 # disable.sh's Home guard refuses it otherwise, and restore.sh puts it back.
 # com.google.android.apps.tv.launcherx
+# com.sony.dtv.launcherxcustomizer             # Sony's add-on for launcherx; disabled with it on the PA unit

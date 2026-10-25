@@ -168,7 +168,8 @@ def install_addon(item, extra):
         # The creator's own script, as their README says to run it.
         return run(["bash", str(folder / item["script"])] + extra, ROOT)
     # No script: the steps addons/README.md gives for every add-on.
-    gradlew = "gradlew.bat" if os.name == "nt" else "./gradlew"
+    # Windows resolves a relative program against this process's directory, not cwd, so give the full path.
+    gradlew = str(folder / "gradlew.bat") if os.name == "nt" else "./gradlew"
     code = run([gradlew, "assembleRelease"], folder)
     if code:
         return code

@@ -281,9 +281,14 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--root", default=str(Path(__file__).resolve().parents[1]))
     ap.add_argument("--check", action="store_true", help="write nothing; exit 1 when a file is out of date")
-    ap.add_argument("--font", help="Fredoka TTF: redraw docs/stats.png and docs/card.jpg when a count changed")
+    ap.add_argument("--font", help="Fredoka TTF (variable, from Google Fonts; not in this repo): redraw "
+                                   "docs/stats.png and docs/card.jpg when a count changed")
     ap.add_argument("--adopt", metavar="PATCH", help="write missing tv.json files from the rows in PATCH first")
     a = ap.parse_args(argv)
+    if a.font and not Path(a.font).is_file():
+        # The scripts this hands the font to exit with their own line, but subprocess.run(check=True) would
+        # then turn that into a CalledProcessError traceback, which names neither the file nor where it is.
+        ap.error(f"cannot open the font at {a.font}: Fredoka (variable TTF, Google Fonts) is not in this repo")
     root = Path(a.root)
     try:
         if a.adopt:

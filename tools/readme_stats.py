@@ -1,8 +1,34 @@
 """Renders the stat strip (docs/stats.png), the top part of the README card.
 
 Update STATS, then: python3 tools/readme_stats.py Fredoka.ttf docs/stats.png
-and rebuild the card with tools/readme_card.py. Fredoka is the variable TTF from Google Fonts."""
+and rebuild the card with tools/readme_card.py. Fredoka is the variable TTF from Google Fonts, and its
+file is not in this repo: download it and pass the path of the copy you saved.
+"""
+import os
 import sys
+
+USAGE = ("usage: readme_stats.py <font.ttf> <out.png>\n"
+         "  Fredoka, the variable TTF from Google Fonts, is not in this repo: download it and pass the\n"
+         "  path of the file you saved.")
+
+
+def font_and_out(argv):
+    """The font and the picture, or a usage line that says where the font comes from.
+
+    The font is the one argument a reader brings themselves: it is not in this repo, so a wrong path is
+    the first thing that fails here, and Pillow's `OSError: cannot open resource` names neither the file
+    it wanted nor where to get it.
+    """
+    if len(argv) != 3:
+        sys.exit(USAGE)
+    font, out = argv[1], argv[2]
+    if not os.path.isfile(font):
+        sys.exit(f"cannot open the font at {font}: Fredoka, the variable TTF from Google Fonts, is not in\n"
+                 "this repo, so pass the path of the copy you downloaded")
+    return font, out
+
+
+FONT, OUT = font_and_out(sys.argv)
 
 # Pillow is not in tools/requirements.txt: it is only needed to redraw the README card, so point at the
 # optional file the way tools/flamechart.py does, instead of ending in a bare traceback.
@@ -11,8 +37,7 @@ try:
 except ImportError:
     sys.exit("readme_stats.py needs Pillow: tools/venv/bin/pip install -r tools/requirements-perf.txt")
 
-FONT, OUT = sys.argv[1], sys.argv[2]
-STATS = [("260", "TV MODELS"), ("77", "BRANDS"), ("25", "LANGUAGES"), ("497 KB", "LAUNCHER")]
+STATS = [("293", "TV MODELS"), ("83", "BRANDS"), ("28", "LANGUAGES"), ("517 KB", "LAUNCHER")]
 W, H = 1600, 240
 img = Image.new("RGB", (W, H), "#15181e"); d = ImageDraw.Draw(img)
 def f(size, wt):

@@ -49,6 +49,11 @@ CATALOGUE = {
         "acr",
         "Coocaa/Skyworth ACR, used to target the ads pushed to the set",
     ),
+    "tv.samba.ssm.ui": (
+        "acr",
+        "Samba TV ACR on TCL sets: identifies what is on screen to target ads; shipped enabled on the "
+        "Netherlands 43P69K (examples/tcl-g10-google-tv) and a US 55Q651G",
+    ),
     "org.droidtv.candeebug": (
         "telemetry",
         "\"DAC\" analytics on Philips sets",
@@ -64,6 +69,10 @@ CATALOGUE = {
     "org.droidtv.tv.frameworklogger": (
         "telemetry",
         "framework and reboot logging",
+    ),
+    "com.tcl.logkit": (
+        "telemetry",
+        "TCL log capture and upload; disabled in most TCL lists in examples/",
     ),
     "com.google.android.feedback": (
         "telemetry",
@@ -113,8 +122,18 @@ def connect():
 
 
 def query_packages(dev):
+    # User 0's packages, read the way tools/recovery.py reads them and for the same reason: without
+    # --user, Android 14's pm merges the answers of every user on the TV, so a package that only a
+    # second user has disabled would be reported as disabled here, and --write would leave it out of
+    # the list as already off. The plain queries are only the fallback for a pm that answers
+    # --user 0 with no package lines at all, never for an empty -d.
+    scope = " --user 0"
+    answer = shell(dev, "pm list packages --user 0")
+    if not any(line.startswith("package:") for line in answer.splitlines()):
+        scope = ""
+        answer = shell(dev, "pm list packages")
     installed = []
-    for line in shell(dev, "pm list packages").splitlines():
+    for line in answer.splitlines():
         if not line.startswith("package:"):
             continue
         name = line.split(":", 1)[1].strip()
@@ -124,7 +143,7 @@ def query_packages(dev):
         raise SystemExit("the TV returned no packages, so there is nothing to audit. Check the "
                          "connection (tools/tv.py --probe) and try again.")
     disabled = {line.split(":", 1)[1].strip()
-                for line in shell(dev, "pm list packages -d").splitlines()
+                for line in shell(dev, f"pm list packages -d{scope}").splitlines()
                 if line.startswith("package:")}
     return installed, disabled
 
@@ -267,20 +286,28 @@ def print_report(result):
           "here proves it is not.")
 
 
-def list_lines(result, include_low):
-    """The debloat list for the candidates the audit actually identified."""
+def list_lines(result, include_low, name):
+    """The debloat list for the candidates the audit actually identified, as the file `name`."""
     keep = [e for e in result["entries"]
             if e["category"] != "unknown" or include_low]
     if not keep:
         raise SystemExit("nothing identified to write: only name matches were found. Run the audit "
                          "again to read them, or pass --include-low to write those too.")
-    host = os.environ.get("TV_HOST", "")
+    # Already off: writing it would only make restore.sh re-enable what the owner disabled on
+    # purpose. Dropped before the check, so a TV with every candidate already off gets no file: a
+    # list of headings alone is one tools/disable.sh refuses, not "wrote 0 packages".
+    keep = [e for e in keep if e["state"] != "disabled"]
+    if not keep:
+        raise SystemExit("nothing to write: every package this list would name is already disabled "
+                         "on the TV. Run the audit again to read them.")
+    # The file outlives this run and may be shared (docs/workflows/tv-list.md), so the header uses
+    # the placeholder every list uses rather than the TV's address.
     lines = [
-        f"# Privacy audit of the TV at {host or 'TV_HOST'}, written by tools/privacy.py.",
+        "# Privacy audit written by tools/privacy.py.",
         "# Voice, ACR and telemetry candidates this TV answered for. Everything is DISABLED, not",
         "# uninstalled, and the undo is the one every list uses:",
-        f"#   TV_HOST={host or '<tv ip>'} tools/disable.sh privacy.txt",
-        f"#   TV_HOST={host or '<tv ip>'} tools/restore.sh privacy.txt",
+        f"#   TV_HOST=<tv ip> tools/disable.sh {name}",
+        f"#   TV_HOST=<tv ip> tools/restore.sh {name}",
         "#",
         "# Each line says what the package is and why it is here. Nothing below is proven to record",
         "# anything: the audit reports what the firmware and the packages declare.",
@@ -289,10 +316,6 @@ def list_lines(result, include_low):
         lines.append("")
         lines.append(f"# {title}")
         for entry in group:
-            if entry["state"] == "disabled":
-                # Already off: writing it would only make restore.sh re-enable what the owner
-                # disabled on purpose.
-                continue
             why = entry["note"]
             if entry["evidence"]:
                 why += f" ({entry['evidence'][0]})"
@@ -305,7 +328,9 @@ def write_list(path, result, include_low):
         # A second audit of the same TV may legitimately differ, but silently replacing a list the
         # owner is about to apply is how a hand edit disappears.
         raise SystemExit(f"{path} already exists; move it aside or choose another name.")
-    lines = list_lines(result, include_low)
+    # The header names the file as it was typed, like the commands printed below; an absolute path
+    # is cut to the file name, which keeps the owner's home folder out of the list.
+    lines = list_lines(result, include_low, os.path.basename(path) if os.path.isabs(path) else path)
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
     names = sum(1 for line in lines if line and not line.startswith("#"))

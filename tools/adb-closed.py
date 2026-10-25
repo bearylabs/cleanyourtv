@@ -68,8 +68,13 @@ def main():
     except OSError as e:
         sys.stderr.write(f"could not check {host}:{port} ({e}). Is the TV on and on this network?\n")
         return 2
-    sys.stderr.write(f"{host}:{port} is still open: network ADB is on. On the TV, turn USB debugging and\n"
-                     "Network/ADB debugging off, reboot it, and check again.\n")
+    # Wireless debugging has a port of its own and stays open when USB debugging goes off, so the advice
+    # names it too. The second check comes before the reboot: if this is the Wireless debugging port, a
+    # reboot leaves Wireless debugging off or starts it on a new port, and this number reads closed
+    # afterwards either way. Port 5555 is the one worth checking again after the reboot.
+    sys.stderr.write(f"{host}:{port} is still open: network ADB is on. On the TV, turn USB debugging,\n"
+                     "Network/ADB debugging and Wireless debugging off and check again, then reboot it\n"
+                     "and check once more.\n")
     return 1
 
 

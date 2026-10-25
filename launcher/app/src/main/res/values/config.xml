@@ -120,7 +120,8 @@
 
     <!-- With key_filter on, true makes HomeKeyService and InputKeyService stop filtering keys while a game
          controller is connected, so games see its buttons (Steam Link with an Xbox controller on a TCL G07
-         did not). The price: the remote buttons below do nothing until the controller disconnects. A voice
+         did not; Moonlight with two controllers put both on player 1, docs/TROUBLESHOOTING.md). The price: the
+         remote buttons below do nothing until the controller disconnects. A voice
          remote that reports a joystick does not count. A theme can set it ("gamepad_passthrough"). -->
     <bool name="gamepad_passthrough">false</bool>
 
@@ -207,11 +208,22 @@
          straight back here. A theme's config.json can set it too. Leave empty to omit. -->
     <string name="stock_home_redirect" translatable="false">com.amazon.tv.launcher</string>
 
+    <!-- For TVs whose firmware opens the Live TV app (live_tv_package) by itself at every power-on, with no setting
+         to change it (Changhong / Homwee boards start com.mediatek.wwtv.tvcenter from its own boot receiver, which
+         adb cannot disable on Android 14). While nobody has pressed a key yet after boot or after the screen turns
+         on, HomeKeyService (HOME_KEY_SERVICE=1) sends a Live TV window back to Home; the first key hands control
+         to the user, so opening Live TV on purpose is never undone. The opposite of boot_to_live_tv, and ignored
+         when that is on. A theme's config.json can set it too. Off by default. -->
+    <bool name="power_on_home">false</bool>
+
     <!-- Show the Solar Hijri (Shamsi) date used in Iran and Afghanistan, e.g. "27 Mehr 1405", above the
          Gregorian date. -->
     <bool name="shamsi_date">false</bool>
     <!-- Lunisolar (Vietnamese / Chinese) date under the date; config.json lunar_date, lunar_utc_offset (7 or 8, default by locale). -->
     <bool name="lunar_date">false</bool>
+    <!-- The date (with the Shamsi and lunar lines) on its own line under the clock instead of beside it, for a top bar
+         whose pills leave the date too little room. Can also be set with "date_below_clock" in a theme. -->
+    <bool name="date_below_clock">false</bool>
 
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
@@ -238,6 +250,8 @@
          through it. false (the default) keeps the solid near-black band, or the cinematic shelf's dark glass. Can
          also be set with "dock_glass": true in a theme's config.json. -->
     <bool name="dock_glass">false</bool>
+    <!-- Draw the dock band and its edge. false leaves the tiles floating on the wallpaper (config.xml dock_band). -->
+    <bool name="dock_band">true</bool>
     <!-- Every app in one row: the dock apps first, the rest after them, and the row scrolls sideways when focus
          reaches its edge. No grid below; rows_below_dock is ignored. Needs dock_row. Can also be set with
          "single_row" in a theme. -->
@@ -267,6 +281,10 @@
     <bool name="wifi_status_warnings">false</bool>
     <!-- The app library as a round button in the top bar, beside Settings (app_library must be on too). -->
     <bool name="library_button">false</bool>
+    <!-- The App library pill after the last Home row. false hides it while library_button is on, so the top-bar
+         button stays the way in, and Down from the last row stays put as with app_library off. Can also be set
+         with "show_library_pill": false in a theme's config.json. -->
+    <bool name="show_library_pill">true</bool>
     <!-- With icon_only_buttons: keep the network name on the Wi-Fi pill up to this width in dp, cut with an ellipsis.
          0 leaves the Wi-Fi pill as an icon. -->
     <integer name="wifi_label_width">0</integer>
@@ -331,6 +349,10 @@
     <!-- Optional direct Home picker in the app library: OK toggles the checkmark, checked apps first.
          Off by default; a theme can set "app_library_selection": true (also needs app_library). -->
     <bool name="app_library_selection">false</bool>
+    <!-- OK opens every app in the library, not only the apps on Home: for a library that holds the apps a theme
+         keeps off Home with hidden_apps. Hold OK still offers Add to Home. app_library_selection wins when both are
+         on. Off by default; a theme can set "library_ok_opens": true (also needs app_library). -->
+    <bool name="library_ok_opens">false</bool>
 
     <!-- Apps pre-seeded into the App library's "added" set at startup (config.xml library_apps, or a theme's
          config.json). They show on Home as if the owner had added them in the App library UI, and stay

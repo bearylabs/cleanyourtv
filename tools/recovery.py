@@ -75,6 +75,16 @@ def record_path(list_path, host):
     return Path.home() / ".cleanyourtv" / f"recovery-{tag}-{digest}.json"
 
 
+def is_chooser(home):
+    """Whether a Home component is Android's chooser rather than a launcher.
+
+    When Home has no default, HOME resolves to android/com.android.internal.app.ResolverActivity
+    (#85). Its package, "android", is not a package name a record can hold, and that is the test
+    here: a launcher always has one.
+    """
+    return bool(home) and not PACKAGE_RE.fullmatch(home.split("/", 1)[0])
+
+
 def load_record(path):
     try:
         with open(path) as f:
@@ -85,6 +95,18 @@ def load_record(path):
                          "replace the state recorded before the first change.")
     if record.get("version") != VERSION or not isinstance(record.get("packages"), dict):
         raise SystemExit(f"{path}: unknown recovery record format; move it aside deliberately.")
+    # Records written before save() left the chooser out hold it as Home, and "android" among the
+    # packages with it. Everything else in them is the TV before cleanup, and moving the file aside
+    # would lose that: restore would then enable every listed package, and a new disable.sh run would
+    # record the TV after cleanup as the original. So the chooser and that one entry are dropped here,
+    # which reads the record the way save() writes it now. Any other bad name is still refused below,
+    # and save() writes the record back this way only when the list has gained names.
+    home = record.get("home")
+    if isinstance(home, str) and HOME_RE.fullmatch(home) and is_chooser(home):
+        record["packages"].pop(home.split("/", 1)[0], None)
+        record["home"] = None
+        sys.stderr.write(f"{path}: the recorded Home is Android's chooser ({home}), not a launcher; "
+                         "reading it as no Home, so undo resolves the stock launcher.\n")
     # The record is replayed on the TV's shell, so it gets the same checks as the list and the TV's
     # answers did when it was written: a hand-edited or damaged file stops here, before any command.
     for name, state in record["packages"].items():
@@ -121,16 +143,37 @@ def shell(dev, command):
     return (dev.shell(command, read_timeout_s=120.0) or "").strip()
 
 
+def package_names(answer):
+    return {line.split(":", 1)[1].strip() for line in answer.splitlines()
+            if line.startswith("package:")}
+
+
 def query_packages(dev):
-    installed = {line.split(":", 1)[1].strip()
-                 for line in shell(dev, "pm list packages").splitlines()
-                 if line.startswith("package:")}
+    """The packages installed for user 0, and the ones disabled for user 0.
+
+    Every command these tools send acts on user 0: `pm disable-user --user 0`, and `pm enable`,
+    which means user 0 when no user is given. Without --user, Android 14's pm answers for every user
+    on the TV and merges the answers (AOSP's android11-release still answered for user 0 alone), so
+    on a TV with a second user a package that only the other user has disabled shows under -d, and
+    one installed only for the other user shows as installed. The Chromecast with Google TV 4K this
+    was tried on has such a user, a dormant profile with the id 10. Recorded from the merged answers,
+    a package the owner had on for user 0 would be "disabled", and restore would leave it off for
+    good. check.py reads the same two sets, so its drift report and its read-back after --fix are
+    about user 0 too.
+    """
+    scope = " --user 0"
+    installed = package_names(shell(dev, "pm list packages --user 0"))
+    if not installed:
+        # A pm that does not take --user prints an error or its usage instead of package lines, and
+        # only that falls back to the plain queries. An empty -d --user 0 is no reason to: a TV
+        # nothing was disabled on yet answers exactly that, and the merged -d would bring the other
+        # user's disabled packages into the record on the very first run.
+        scope = ""
+        installed = package_names(shell(dev, "pm list packages"))
     if not installed:
         raise SystemExit("the TV returned no packages, so nothing was recorded and nothing will be "
                          "disabled. Check the connection (tools/tv.py --probe) and try again.")
-    disabled = {line.split(":", 1)[1].strip()
-                for line in shell(dev, "pm list packages -d").splitlines()
-                if line.startswith("package:")}
+    disabled = package_names(shell(dev, f"pm list packages -d{scope}"))
     return installed, disabled
 
 
@@ -138,8 +181,11 @@ def query_home(dev):
     answer = shell(dev, "cmd package resolve-activity --brief -a android.intent.action.MAIN -c "
                         "android.intent.category.HOME")
     candidate = answer.splitlines()[-1].strip() if answer else ""
-    # Android answers "android" (the chooser) when nothing handles HOME; that is not a component and
-    # must never be written into a set-home-activity command.
+    # Only a component counts: "No activity found" when nothing handles HOME, or the shell's error on
+    # firmware older than `cmd`, comes back as None. Android's chooser does pass, though: when Home has
+    # no default the last line is android/com.android.internal.app.ResolverActivity (#85). check.py
+    # reports that as the Home it found, and save() keeps it out of the record, because the chooser is
+    # no launcher to put back and must never be written into a set-home-activity command.
     return candidate if HOME_RE.fullmatch(candidate) else None
 
 
@@ -196,6 +242,14 @@ def save(list_path, host):
     finally:
         dev.close()
 
+    # Android's chooser, android/com.android.internal.app.ResolverActivity, answers HOME when Home has
+    # no default. Recorded, it would put "android" among the packages, which is not a package name a
+    # record can hold. A Home whose package the record cannot hold is left out instead, and restore
+    # then resolves the stock launcher, as it does when nothing answered HOME.
+    chooser = home if is_chooser(home) else None
+    if chooser:
+        home = None
+
     # The launcher that owns Home may not be in the list, but it is what undo has to put back.
     home_package = home.split("/", 1)[0] if home else None
     targets = packages + ([home_package] if home_package and home_package not in packages else [])
@@ -213,7 +267,11 @@ def save(list_path, host):
     already = sum(1 for state in record["packages"].values() if state == "disabled")
     print(f"recorded {len(record['packages'])} packages on {host} "
           f"({already} already disabled, left alone by undo) -> {path}")
-    print(f"HOME before: {home or 'no component answered'}")
+    if chooser:
+        print(f"HOME before: {chooser}, Android's chooser (Home has no default), so no Home was "
+              "recorded")
+    else:
+        print(f"HOME before: {home or 'no component answered'}")
     print("undo with tools/restore.sh <same list>; keep this file, it is the only copy.")
     return 0
 

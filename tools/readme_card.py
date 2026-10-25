@@ -3,8 +3,34 @@ the file the front page displays.
 
 Run tools/readme_stats.py and tools/readme_featured.py first, then:
 python3 tools/readme_card.py Fredoka.ttf docs/card.jpg
+Fredoka is the variable TTF from Google Fonts, and its file is not in this repo: pass the path of the
+copy you downloaded.
 """
+import os
 import sys
+
+USAGE = ("usage: readme_card.py <font.ttf> <out.jpg>\n"
+         "  Fredoka, the variable TTF from Google Fonts, is not in this repo: download it and pass the\n"
+         "  path of the file you saved.")
+
+
+def font_and_out(argv):
+    """The font and the picture, or a usage line that says where the font comes from.
+
+    The font is the one argument a reader brings themselves: it is not in this repo, so a wrong path is
+    the first thing that fails here, and Pillow's `OSError: cannot open resource` names neither the file
+    it wanted nor where to get it.
+    """
+    if len(argv) != 3:
+        sys.exit(USAGE)
+    font, out = argv[1], argv[2]
+    if not os.path.isfile(font):
+        sys.exit(f"cannot open the font at {font}: Fredoka, the variable TTF from Google Fonts, is not in\n"
+                 "this repo, so pass the path of the copy you downloaded")
+    return font, out
+
+
+FONT, OUT = font_and_out(sys.argv)
 
 # See readme_stats.py: Pillow lives in the optional requirements file, so name it rather than crash.
 try:
@@ -12,7 +38,6 @@ try:
 except ImportError:
     sys.exit("readme_card.py needs Pillow: tools/venv/bin/pip install -r tools/requirements-perf.txt")
 
-FONT, OUT = sys.argv[1], sys.argv[2]
 BG, LINE, DIM, GREEN = "#15181e", "#2c313a", "#aab3bd", "#cfffcf"
 W = 1600
 def f(size, wt):

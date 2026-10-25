@@ -20,11 +20,23 @@ moment those come back into play: the update can turn setupwraith back on for a 
 owns, and a fix that skipped the checks would take that TV off Wi-Fi with no way back in.
 
 Exit codes: 0 in sync (or fixed), 1 drift, an incomplete fix, or packages a safety check left on,
-2 the TV could not be read.
+2 the TV or the list could not be read, which includes ADB timing out or failing partway (after which a
+--fix may be partial, and the next check says what is left), or the command line asked for something this
+script does not do. That last one matters: README.md tells an owner to run this from a weekly job and hear
+about it on exit 1, so a mistyped flag must not come back as drift.
 """
 import os
 import re
 import sys
+
+# The command line is judged before the list is read and before the TV is touched. `check.py --help`
+# used to be taken as a list named `--help` and died in a FileNotFoundError traceback - exit 1, the
+# code a weekly job reads as "the TV drifted" - and a flag typed where the launcher package goes
+# reached set-home-activity as if it were a package name.
+USAGE = ("usage: check.py <debloat list> [launcher package]        report the drift; exit 1 when there is any\n"
+         "       check.py --fix <debloat list> [launcher package]  re-disable what came back and put the\n"
+         "                                                        launcher back on Home\n"
+         "       check.py --help                                   this text\n")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import recovery  # noqa: E402  (needs the tools/ directory on the path first)
@@ -259,16 +271,34 @@ def fix(dev, listed, back_on, home_drifted, preferred):
 
 def main():
     args = sys.argv[1:]
+    if any(a in ("-h", "--help") for a in args):
+        sys.stdout.write(USAGE)
+        return 0
+    # Only --fix is a flag; anything else starting with a dash is refused here, where it is a
+    # mistyped command, rather than passed on as a path (a traceback, exit 1) or as the launcher
+    # package (a set-home-activity for something that cannot own Home).
+    unknown = next((a for a in args if a.startswith("-") and a != "--fix"), None)
+    if unknown:
+        sys.stderr.write(f"check.py: no such flag: {unknown}\n{USAGE}")
+        return 2
     wanted = "--fix" in args
     args = [a for a in args if a != "--fix"]
     if not 1 <= len(args) <= 2:
-        sys.stderr.write("usage: check.py [--fix] <debloat list> [launcher package]\n")
+        sys.stderr.write(USAGE)
         return 2
     list_path = args[0]
     preferred = args[1] if len(args) == 2 else None
     # read_list validates every name before anything is sent to the TV: its entries end up in the
     # TV's shell, and a list edited by hand since then is not to be trusted.
-    listed = recovery.read_list(list_path)
+    try:
+        listed = recovery.read_list(list_path)
+    except OSError as e:
+        # A path typed wrong or a list that moved after a git pull is a command-line mistake, not a
+        # TV that drifted: exit 2, not the 1 a weekly job reads as drift.
+        sys.stderr.write(f"could not read {list_path} ({e.strerror or e}). Nothing was checked or changed: "
+                         f"pass the debloat list this TV was cleaned with, e.g. "
+                         f"examples/<your tv>/debloat.txt.\n")
+        return 2
     core = recovery.core_packages(listed)
     if core:
         # The same refusal as disable.sh: --fix would disable these again (#884).
@@ -277,17 +307,47 @@ def main():
                          f"of the list and run it again. Nothing was checked or changed.\n")
         return 2
 
+    # adb_shell raises its own errors as plain Exception subclasses, not OSError:
+    # TcpTimeoutException when nobody accepts the "Allow USB debugging?" prompt in time (after the
+    # authorisations were revoked, or for a key the TV has not seen) or when the TV goes to standby
+    # partway, and AdbTimeoutError and DeviceAuthError. Left alone they end the run with a traceback
+    # and exit 1, which a cron job reads as drift, so every Exception here is exit 2, the TV could
+    # not be read. SystemExit and KeyboardInterrupt are not Exceptions: tv.py's own exits (TV_HOST
+    # unset), the refusals in recovery.py and in this file, and Ctrl-C still stop the run as before.
+    probe = "tools/venv/bin/python -I tools/tv.py --probe"
     try:
         dev = recovery.connect()
     except (OSError, ConnectionError) as e:
         sys.stderr.write(f"could not reach the TV ({e}). Check it is on and TV_HOST is right "
-                         f"(tools/venv/bin/python -I tools/tv.py --probe).\n")
+                         f"({probe}).\n")
         return 2
+    except Exception as e:
+        # Usually the handshake: the port answered, but nobody accepted the TV's prompt in time.
+        sys.stderr.write(f"could not read the TV ({type(e).__name__}: {e}). If it shows "
+                         f"\"Allow USB debugging?\", accept it and run this again; otherwise check "
+                         f"it is on and TV_HOST is right ({probe}).\n")
+        return 2
+    fixing = False
     try:
         _, _, home, back_on, gone, home_drifted, expected = inspect(dev, listed, preferred)
         code = report(list_path, listed, home, back_on, gone, home_drifted, expected)
         if code and wanted:
+            fixing = True
             code = fix(dev, listed, back_on, home_drifted, preferred)
+    except Exception as e:
+        why = f"{type(e).__name__}: {e}"
+        if fixing:
+            # The commands before the one that failed have run on the TV, that one may or may not
+            # have, and the rest have not. Nothing was read back, so only a fresh check can say
+            # where the fix stopped.
+            sys.stderr.write(f"lost the TV during --fix ({why}), so the fix may be partial. Once "
+                             f"the TV answers ({probe}), run check.py again to see what is left.\n")
+        else:
+            # No report from half the queries: what was read so far could pass for a TV in sync.
+            sys.stderr.write(f"could not read the TV ({why}), so there is no report and nothing "
+                             f"was changed. Check it is on and still on the network ({probe}), "
+                             f"then run this again.\n")
+        return 2
     finally:
         dev.close()
     return code

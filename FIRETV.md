@@ -4,7 +4,11 @@ This fork's `firetv` branch contains local adaptations for an AFTSS/sheldon runn
 
 ## Changes relative to the original
 
-Base: `eb0131a32fd8567086f39002f1782f7c1b078ca6` from https://github.com/Gathin23/cleanyourtv.
+Original base: `eb0131a32fd8567086f39002f1782f7c1b078ca6` from https://github.com/Gathin23/cleanyourtv.
+
+All 407 previously pending upstream commits through `575d73f0` have been merged. The resulting APK is a **test candidate, not yet tested on a physical Fire TV**. The original known-device APK remains separately pinned in the private setup repository. See its `TESTING.md` for the later explicitly approved update test.
+
+The HomeKeyService merge retains both the Fire TV adapter and upstream's power-on, standby opt-in and Android 10+ stock-home handling. Fire TV continues to use its adapter; the upstream launch path is kept for other platforms. New layout/library behavior switches retain their upstream defaults: no silent layout change, no automatic TCL standby workaround. Optional add-ons are available as source but are not bundled or installed with the launcher.
 
 - Opt-in Amazon Home redirect: reuse our own task, with an alarm fallback and a black accessibility overlay that fails open after four seconds. Stale window events are ignored. Attribution: `launcher/DUMBTV-LICENSE.txt`.
 - Fire OS settings fallback to the real Amazon settings activity.

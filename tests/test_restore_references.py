@@ -10,6 +10,11 @@ that a list folder holds none (AGENTS.md, "Hard rules"): a page that sends an ow
 `examples/<folder>/restore.sh` names a file the folder has to have, and the TCL 55S470G header
 named one that was not there.
 
+And a command that passes the stock launcher but no list names nothing at all: restore.sh takes the
+list as its first argument and the stock launcher as its second, so the CVTE T972 page's
+`tools/restore.sh ... com.cvte.tv.launcher.highend` was refused before a single package came back,
+which the reference pattern above never read because there was no `.txt` in the line.
+
 Run from the repository root: python3 -m unittest discover -s tests -v
 """
 import os
@@ -30,6 +35,19 @@ REFERENCE = re.compile(r"restore\.(?:sh|ps1)\s+([A-Za-z0-9_./<>-]*\.txt)")
 # that sends an owner to one names a file the folder has to have.
 FOLDER_SCRIPT = re.compile(r"(examples/[A-Za-z0-9._-]+/(?:restore|disable|install|build-and-install)\."
                            r"(?:sh|ps1))")
+# `tools/restore.sh <list> <stock launcher>`: the list is restore.sh's first argument, the stock
+# launcher its second (see its usage line and LIST=${1:?} / STOCK=${2:-...}). Both arguments are
+# matched with no `.txt` required in the pattern, so a command that leaves the list out is read too.
+PAIR = re.compile(r"tools[/\\]restore\.sh\s+(\S+)\s+(\S+)")
+PACKAGE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+")
+# A token as a page wraps it: `code`, "quoted", and the punctuation that ends the sentence.
+WRAPPER = "`'\",;."
+
+
+def unwrapped(token):
+    """The argument a reader would type, without the backticks, quotes and full stop around it."""
+    return token.strip(WRAPPER).rstrip(".")
+
 
 # Every list a reader can run. A page outside examples/ that needs one names that file too.
 LIST_FOLDERS = ROOT / "examples"
@@ -74,6 +92,27 @@ def read_script_references(root):
     return found
 
 
+def restore_commands(root):
+    """(file, line number, first argument, second argument) for every two-argument tools/restore.sh.
+
+    Only the lines that hand it something package-shaped second are read: those are commands passing
+    the stock launcher, and restore.sh's stock launcher is its second argument.
+    """
+    found = []
+    for path, text in walk(root):
+        for number, line in enumerate(text.splitlines(), 1):
+            for first, second in PAIR.findall(line):
+                if PACKAGE.fullmatch(unwrapped(second)):
+                    found.append((path, number, first, second))
+    return found
+
+
+def commands_without_a_list(root):
+    """(file, line, first argument, second argument) for the ones whose first argument is no list."""
+    return [(path, number, first, second) for path, number, first, second in restore_commands(root)
+            if not unwrapped(first).endswith(".txt") and "<" not in first]
+
+
 class RestoreReferencesTest(unittest.TestCase):
     def test_every_reference_names_a_list_that_is_there(self):
         missing = [(str(path), name) for path, name in read_references(ROOT)
@@ -106,6 +145,31 @@ class RestoreReferencesTest(unittest.TestCase):
         self.assertGreaterEqual(len(read_script_references(ROOT)), 4,
                                 "the folders that do ship such a script should be read; the scanner "
                                 "found fewer")
+
+    def test_a_restore_that_names_the_launcher_names_the_list(self):
+        # The CVTE T972 page sent an owner to `tools/restore.sh ... com.cvte.tv.launcher.highend`: the
+        # stock launcher in the list's place, so restore.sh exits on its usage line with "usage:
+        # restore.sh <debloat list> [stock launcher package]" and nothing is re-enabled - at the moment
+        # the TV looks wrong. 168 of the 169 two-argument commands under this repo pass the list first.
+        found = restore_commands(ROOT)
+        self.assertGreaterEqual(len(found), 100,
+                                "the repo-wide sweep should read every restore command that passes the "
+                                "stock launcher; it found fewer, so it cannot fail on one")
+        wrong = [(str(path), number, first, second)
+                 for path, number, first, second in commands_without_a_list(ROOT)]
+        self.assertEqual([], wrong,
+                         "these lines hand restore.sh a stock launcher and no list, so it stops on its "
+                         "usage line before recovery.py runs and nothing comes back")
+
+    def test_restore_takes_the_list_first_and_the_launcher_second(self):
+        # The sweep above is only right while that is the order; if restore.sh swaps or drops an
+        # argument, this fails instead of the page being blamed for a script change.
+        text = (ROOT / "tools" / "restore.sh").read_text(encoding="utf-8")
+        self.assertIn('LIST="${1:', text,
+                      "restore.sh no longer takes the list as its first argument, so the rule above "
+                      "(and the undo lines it checks) no longer match the script")
+        self.assertIn('STOCK="${2:', text,
+                      "restore.sh no longer takes the stock launcher as its second argument")
 
     # ---- the reader itself, so the two tests above cannot pass by reading nothing ---------------
 
@@ -181,6 +245,60 @@ class RestoreReferencesTest(unittest.TestCase):
                        "TV_HOST=<tv ip> examples/<your tv>/restore.sh\n"
                        "A folder with a `restore.sh` of its own is not the rule here.\n")
             self.assertEqual([], read_script_references(root))
+
+    def test_a_launcher_without_a_list_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, "examples/cvte/debloat.txt", "com.example.one\n")
+            self.write(root, "examples/cvte/README.md",
+                       "- Undo with `tools/restore.sh ... com.cvte.tv.launcher.highend`.\n")
+            self.assertEqual([(Path("examples/cvte/README.md"), 1, "...",
+                               "com.cvte.tv.launcher.highend`.")],
+                             commands_without_a_list(root))
+
+    def test_a_launcher_with_its_list_is_quiet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, "examples/cvte/debloat.txt", "com.example.one\n")
+            self.write(root, "examples/cvte/README.md",
+                       "- Undo with `TV_HOST=<tv ip> tools/restore.sh examples/cvte/debloat.txt "
+                       "com.cvte.tv.launcher.highend`.\n")
+            self.assertEqual([(Path("examples/cvte/README.md"), 1, "examples/cvte/debloat.txt",
+                               "com.cvte.tv.launcher.highend`.")],
+                             restore_commands(root))
+            self.assertEqual([], commands_without_a_list(root))
+
+    def test_a_quoted_list_is_read_as_the_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, "docs/page.md",
+                       "Undo: tools/restore.sh \"examples/kept/debloat.txt\" com.example.stock\n")
+            self.assertEqual([], commands_without_a_list(root))
+
+    def test_a_command_that_passes_only_the_list_is_not_a_pair(self):
+        # One argument is the list alone: restore.sh then uses its default stock launcher, which is
+        # what 168 lists rely on, so it is not a command that forgot the list.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, "docs/page.md", "Undo: tools/restore.sh examples/kept/debloat.txt\n")
+            self.assertEqual([], restore_commands(root))
+
+    def test_prose_about_restore_sh_is_not_a_command(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, "docs/page.md",
+                       "restore.sh would turn them ON, and `tools/restore.sh` takes the list first.\n")
+            self.assertEqual([], restore_commands(root))
+
+    def test_the_powershell_twin_is_a_named_parameter_command(self):
+        # restore.ps1 takes -List and -Stock and has no package-shaped bare argument, so none of this
+        # is read as a two-argument bash command.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.write(root, "docs/page.md",
+                       "Undo: tools\\restore.ps1 -TvHost 192.168.1.50 -Stock com.example.stock "
+                       "-List examples\\kept\\debloat.txt\n")
+            self.assertEqual([], restore_commands(root))
 
 
 if __name__ == "__main__":
