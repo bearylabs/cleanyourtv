@@ -18,9 +18,9 @@
     <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
     <string-array name="dock_apps">
         <item>com.netflix.ninja</item>
-        <item>com.amazon.amazonvideo.livingroom</item>
-        <item>com.google.android.youtube.tv</item>
-        <item>in.startv.hotstar</item>
+        <item>com.amazon.firebat</item>
+        <item>com.amazon.firetv.youtube</item>
+        <item>com.disney.disneyplus</item>
     </string-array>
     <!-- With fewer dock_apps than columns (or a dock app that is not installed), the free dock slots take
          the first grid apps, so the dock never shows a gap. false leaves them empty (#162); a theme can
@@ -31,6 +31,15 @@
     <string-array name="hidden_apps">
         <item>com.mediatek.wwtv.tvcenter</item>
         <item>com.mitv.gallery</item>
+        <!-- Cosmetic cleanup only: packages stay installed and enabled. -->
+        <item>com.amazon.spiderpork</item>
+        <item>com.amazon.firetv.troubleshooting</item>
+        <item>com.amazon.ssm</item>
+        <item>com.amazon.vizzini.ftvcds</item>
+        <item>com.android.providers.downloads.ui</item>
+        <item>com.amazon.minitv.android.app</item>
+        <item>com.amazon.ftv.profilepicker</item>
+        <item>com.amazon.tv.launcher</item>
     </string-array>
 
     <!-- The TV's Live TV / tuner app, offered at the end of the Inputs menu. Leave empty to omit. -->
@@ -65,6 +74,7 @@
          A tile whose action no longer resolves opens the app normally. MagentaTV's program guide:
          com.telekom.onetv.tv.pl=com.telekom.onetv.tv.pl.action.PROGRAM_GUIDE. -->
     <string-array name="launch_actions">
+        <item>com.amazon.venezia=com.amazon.venezia.ade.FEATURED_LAUNCH</item>
     </string-array>
 
     <!-- A tile's name instead of the app's own: "package=Name". It also shows above the dock. -->
@@ -195,7 +205,7 @@
          com.xgimi.xrmservice does, on every one of its remote keys, power included (docs/TROUBLESHOOTING.md).
          Whenever that launcher's home screen comes up anyway, HomeKeyService (HOME_KEY_SERVICE=1) sends the TV
          straight back here. A theme's config.json can set it too. Leave empty to omit. -->
-    <string name="stock_home_redirect" translatable="false"></string>
+    <string name="stock_home_redirect" translatable="false">com.amazon.tv.launcher</string>
 
     <!-- Show the Solar Hijri (Shamsi) date used in Iran and Afghanistan, e.g. "27 Mehr 1405", above the
          Gregorian date. -->
@@ -314,7 +324,7 @@
     <bool name="show_home_settings_shortcut">false</bool>
 
     <!-- Installed launchable apps, including ordinary Android apps. Also settable in config.json. -->
-    <bool name="app_library">false</bool>
+    <bool name="app_library">true</bool>
     <!-- Every app tile is its icon on a card tinted from that icon, name only under the focused tile,
          instead of each app's own banner. Off by default; a theme can set "uniform_tiles": true. -->
     <bool name="uniform_tiles">false</bool>
