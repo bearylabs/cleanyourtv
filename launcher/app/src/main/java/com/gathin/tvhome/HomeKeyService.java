@@ -60,6 +60,8 @@ public class HomeKeyService extends AccessibilityService {
     private final Set<String> stockHome = new HashSet<>();
     /** Stops key filtering while a game controller is connected; null unless gamepad_passthrough and key_filter, or before the unlock. */
     private GamepadPassthrough gamepads;
+    /** Local opt-in adapter, created only when redirecting Amazon's protected Home. */
+    private FireHomeRedirect fireHome;
 
     @Override
     protected void onServiceConnected() {
@@ -97,6 +99,7 @@ public class HomeKeyService extends AccessibilityService {
     @Override
     public void onDestroy() {
         stopWaitingForUnlock();
+        if (fireHome != null) fireHome.destroy();
         if (gamepads != null) gamepads.stop();
         if (consumeVolumeKeys) VolumeKeys.stop();
         super.onDestroy();
@@ -121,6 +124,9 @@ public class HomeKeyService extends AccessibilityService {
             for (ResolveInfo ri : getPackageManager().queryIntentActivities(home, PackageManager.MATCH_DISABLED_COMPONENTS)) {
                 stockHome.add(ri.activityInfo.name);
             }
+        }
+        if ("com.amazon.tv.launcher".equals(config.stockHomeRedirect) && fireHome == null) {
+            fireHome = new FireHomeRedirect(this);
         }
         // home_key_service.xml subscribes to no events, so the redirect asks for window changes only when it is on.
         AccessibilityServiceInfo info = getServiceInfo();
@@ -193,6 +199,17 @@ public class HomeKeyService extends AccessibilityService {
         // stock_home_redirect: the firmware turned the stock launcher back on and its home screen came up.
         if (stockHome.isEmpty() || event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         CharSequence cls = event.getClassName();
+        CharSequence pkg = event.getPackageName();
+        if (fireHome != null) {
+            if ("com.amazon.tv.launcher".contentEquals(pkg == null ? "" : pkg)
+                    && cls != null && stockHome.contains(cls.toString())) {
+                if (!FireHomeRedirect.wasShownAfter(event.getEventTime())) openHome();
+            } else if (pkg != null && !getPackageName().contentEquals(pkg)
+                    && !"android".contentEquals(pkg) && !"com.android.systemui".contentEquals(pkg)) {
+                fireHome.cancel();
+            }
+            return;
+        }
         if (cls != null && stockHome.contains(cls.toString())) openHome();
     }
 
@@ -240,6 +257,10 @@ public class HomeKeyService extends AccessibilityService {
     }
 
     private void openHome() {
+        if (fireHome != null) {
+            fireHome.request();
+            return;
+        }
         startActivity(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).setPackage(getPackageName())
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED));
     }
