@@ -2303,13 +2303,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             Intent launch = pm.getLeanbackLaunchIntentForPackage(pkg);
             if (launch == null) launch = pm.getLaunchIntentForPackage(pkg);
             if (launch == null) continue;   // not installed, or disabled
-            // Honor the same configured actions as tiles. On Fire TV the default
-            // Appstore launch opens the app grid; FEATURED_LAUNCH opens the actual store.
-            String action = launchActions.get(pkg);
-            if (action != null) {
-                Intent custom = new Intent(action).setPackage(pkg);
-                if (pm.resolveActivity(custom, 0) != null) launch = custom;
-            }
+            // Use the same configured launch_actions as tiles; retain the normal entry if unavailable.
+            launch = LaunchActions.select(pkg, launchActions, launch, (targetPackage, action) -> {
+                Intent custom = new Intent(action).setPackage(targetPackage);
+                return pm.resolveActivity(custom, 0) != null ? custom : null;
+            });
             Drawable logo;
             CharSequence label;
             try {
