@@ -19,7 +19,12 @@ final class SystemSettings {
         ResolveInfo resolved = pm.resolveActivity(standard, PackageManager.MATCH_DEFAULT_ONLY);
         // Fire OS resolves the standard actions to a CTS compliance stub that opens nothing;
         // treat it as missing so the vendor fallback runs.
-        if (resolved != null && !resolved.activityInfo.name.contains("CTSDummy")) return standard;
+        // Fire OS 7.7.1.7 resolves SETTINGS to launcher.ui.SettingsActivity, which
+        // returns to Home rather than opening the real MainSettingsActivity.
+        boolean fireSettingsStub = resolved != null
+                && "com.amazon.tv.launcher".equals(resolved.activityInfo.packageName);
+        if (resolved != null && !resolved.activityInfo.name.contains("CTSDummy")
+                && !fireSettingsStub) return standard;
         Intent vendor = vendorIntent(context);
         return vendor != null ? vendor : standard;
     }
