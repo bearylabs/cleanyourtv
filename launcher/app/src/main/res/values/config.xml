@@ -15,13 +15,6 @@
         <item>com.amazon.tv.launcher/com.amazon.tv.launcher.ui.MainSettingsActivity</item>
     </string-array>
 
-    <!-- Exact standard-settings handlers known to open nothing useful. Resource-only device policy;
-         other activities in the same package remain usable. Not a theme JSON key.
-         AFTSS Fire OS 7.7.1.7: SettingsActivity returns Home, MainSettingsActivity opens settings. -->
-    <string-array name="settings_stub_components" translatable="false">
-        <item>com.amazon.tv.launcher/.ui.SettingsActivity</item>
-    </string-array>
-
     <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
     <string-array name="dock_apps">
         <item>com.netflix.ninja</item>

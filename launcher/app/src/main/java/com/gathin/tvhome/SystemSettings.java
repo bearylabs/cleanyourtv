@@ -17,28 +17,11 @@ final class SystemSettings {
         PackageManager pm = context.getPackageManager();
         Intent standard = new Intent(action);
         ResolveInfo resolved = pm.resolveActivity(standard, PackageManager.MATCH_DEFAULT_ONLY);
-        if (resolved != null && resolved.activityInfo != null
-                && !isStub(resolved.activityInfo.packageName, resolved.activityInfo.name,
-                        context.getResources().getStringArray(R.array.settings_stub_components))) return standard;
+        // Fire OS resolves the standard actions to a CTS compliance stub that opens nothing;
+        // treat it as missing so the vendor fallback runs.
+        if (resolved != null && !resolved.activityInfo.name.contains("CTSDummy")) return standard;
         Intent vendor = vendorIntent(context);
         return vendor != null ? vendor : standard;
-    }
-
-    /** Pure matching policy: never reject a whole vendor package because one entry is a stub. */
-    static boolean isStub(String pkg, String activity, String[] components) {
-        if (activity == null) return true;
-        // Existing compliance stub detection, independent of the device-specific entries below.
-        if (activity.contains("CTSDummy")) return true;
-        for (String value : components) {
-            if (value == null) continue;
-            int slash = value.indexOf('/');
-            if (slash <= 0 || slash == value.length() - 1) continue;
-            String targetPackage = value.substring(0, slash);
-            String targetClass = value.substring(slash + 1);
-            if (targetClass.startsWith(".")) targetClass = targetPackage + targetClass;
-            if (targetPackage.equals(pkg) && targetClass.equals(activity)) return true;
-        }
-        return false;
     }
 
     /** The first vendor settings entry from settings_fallback_components that is installed, or null

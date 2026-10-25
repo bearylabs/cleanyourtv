@@ -39,12 +39,6 @@ SCREENSHOT_WANTED = {
 }
 
 
-# Nonvisual firmware compatibility data is not a UI switch: a screenshot cannot demonstrate exact
-# component matching. Keep this separate from SCREENSHOT_WANTED (which must only shrink), document it,
-# and enforce that it stays build-only below. Do not use this for missing screenshots of visual keys.
-BUILD_ONLY_COMPATIBILITY = {"settings_stub_components": "docs/settings-handlers.md"}
-
-
 def theme_keys():
     """Every key in the Keys table of themes/README.md, as the site reads it."""
     keys, on = [], False
@@ -83,22 +77,7 @@ class SwitchScreenshotTest(unittest.TestCase):
                 if key in SCREENSHOT_WANTED:
                     self.assertNotIn(key, rows, "it has a screenshot now: take it off SCREENSHOT_WANTED")
                     continue
-                if key in BUILD_ONLY_COMPATIBILITY:
-                    continue  # validated as documented, non-theme compatibility data below
                 self.assertIn(key, rows, "no screenshot: add one to docs/switches.md (see its Adding a key section)")
-
-    def test_build_only_compatibility_is_documented_and_not_a_theme_switch(self):
-        table = THEMES_README.read_text(encoding="utf-8")
-        config = (ROOT / "launcher/app/src/main/java/com/gathin/tvhome/Config.java").read_text()
-        for key, doc in BUILD_ONLY_COMPATIBILITY.items():
-            with self.subTest(key=key):
-                self.assertIn(key, theme_keys())
-                row = next(line for line in table.splitlines() if line.startswith(f"| `{key}` |"))
-                self.assertIn("`config.xml` only", row.split("|")[2])
-                self.assertNotIn(f'"{key}"', config, "theme-readable keys need real-TV screenshots")
-                self.assertIn(f"`{key}`", (ROOT / doc).read_text())
-                self.assertNotIn(key, screenshot_rows(), "do not substitute an unrelated UI image")
-                self.assertNotIn(key, SCREENSHOT_WANTED)
 
     def test_screenshots_exist_and_fit_the_rules(self):
         for key, src in screenshot_rows().items():

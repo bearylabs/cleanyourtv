@@ -5,7 +5,7 @@ This public fork's `firetv` branch adapts CleanYourTV for a **Fire TV Stick Lite
 ## What changes
 
 - Opt-in Amazon Home redirect in the existing `HomeKeyService`: reuse the launcher's task, with an alarm fallback and a black accessibility overlay that fails open after four seconds. Stale window events are ignored. Attribution: [DUMBTV-LICENSE.txt](launcher/DUMBTV-LICENSE.txt).
-- Native settings fallback, including the unusable Fire OS settings trampoline. Only an exact configured component is rejected, not every activity in Amazon's launcher package.
+- Native settings use the existing upstream `SystemSettings` fallback, including its CTS-stub detection. No extra vendor-package blacklist or settings compatibility table is needed.
 - Top-bar app buttons honor `launch_actions`, like app tiles, retaining the normal entry if the configured action no longer resolves.
 - Device-specific dock, eight cosmetically hidden tiles and a bottom-only app library. No extra top-bar apps by default. Hidden apps are not disabled or uninstalled by the launcher.
 
@@ -23,9 +23,15 @@ a7ff827e7b4fe188769b49ca293f1e8f189c84214a76f5e02289306780ca6290
 - The owner reported **no Amazon Home flash** in real-remote HOME tests from Netflix, Disney+ and Prime Video. These are observations, not guarantees under every load or from every playback state.
 - **Known issue, accepted by the owner:** HOME from RTL+ can expose Amazon Home before redirecting. No invisible-transition guarantee.
 - No new physical cold-boot, playback/DRM or sleep/wake validation was performed after restoring RC1. A configured service or injected key is not proof of real-remote or boot behavior.
-- The later source-only refinement of exact settings-component matching and its new regression tests have not been installed on the stick. The top-bar action selection now has executable JVM policy tests plus UI-wiring regressions. Build/tests do not turn these source changes into a physically validated APK release.
+- A temporary build was installed for targeted ADB-driven device checks. With Appstore temporarily configured in `top_bar_apps`, selecting its button sent `com.amazon.venezia.ade.FEATURED_LAUNCH` and focused `ADEHomeActivity`. Selecting Settings opened the real `com.amazon.tv.launcher/.ui.MainSettingsActivity`. These were real-device UI checks, **not physical-remote, boot or playback tests**. The separate PR builds based on newer upstream were built/tested offline, not installed.
+- An important resolution check ruled out the proposed extra settings rule: unrestricted shell resolution picks `.ui.SettingsActivity`, but adding `android.intent.category.DEFAULT` (corresponding to the default-handler restriction used by `SystemSettings`) picks `.compliance.CTSDummySettingsHandler`. Upstream already handles that CTS stub. The experimental exact-component table, its tests/documentation exception and the earlier broad Amazon-package exclusion were therefore removed from the final source. No speculative settings-fix PR was submitted.
+- The original RC1 was then restored and its checksum verified again; the temporary Appstore top-bar button is gone. CEC remains ON, Amazon Home enabled and the ordinary redirect configured. No new APK pin or release promotion.
 
 The installed RC1 APK is **not necessarily identical to a fresh build of this branch**. No new APK is automatically installed or promoted merely because its tests pass. Personal configuration, deployment records, release pins and signing keys remain separate; none is required to read or build this public source.
+
+## Device screenshots
+
+[Restored RC1 Home](https://github.com/bearylabs/cleanyourtv/releases/download/firetv-device-check-images-2026-10-25/rc1-home.jpg) and [temporary top-bar action test](https://github.com/bearylabs/cleanyourtv/releases/download/firetv-device-check-images-2026-10-25/top-bar-action-test.jpg) are actual device captures, resized to 1280x720 with metadata stripped and checked for account/network/location information. The latter deliberately shows an extra Appstore button **only for testing**, not this fork's default configuration. They are published as screenshot-only pre-release assets, not committed device dumps, APKs or a new launcher release.
 
 ## Build and test from this public repository
 
@@ -50,11 +56,11 @@ python3 -m unittest discover -s tests -v
 git diff --check
 ```
 
-Some repository tests need optional dependencies or a POSIX environment; report skips and failures honestly. Java tests exercise action-selection and settings-matching policy without a TV; Python regressions check the UI/resource wiring.
+Some repository tests need optional dependencies or a POSIX environment; report skips and failures honestly. Java tests exercise action-selection policy without a TV; Python regressions check its UI wiring and the fork's resources. The speculative settings-matching extension has been removed.
 
 ## Configuration and installation boundary
 
-Edit `launcher/app/src/main/res/values/config.xml` for a deliberate local build. The branch sets `stock_home_redirect` to `com.amazon.tv.launcher`, preserves its selected dock and keeps normal upstream behavior switches at their defaults. `settings_stub_components` is a resource-only list of exact unusable settings handlers, not a theme key. Working activities in the same package stay usable; the existing `CTSDummy` fallback is retained. See the [keys table](themes/README.md#keys). This resource is nonvisual firmware compatibility data, not a new UI switch: executable matching tests cover it, and screenshot checks explicitly require it to remain build-only and documented. An unrelated settings screenshot is not substituted for an AFTSS device test; visual theme switches still need real-TV screenshots.
+Edit `launcher/app/src/main/res/values/config.xml` for a deliberate local build. The branch sets `stock_home_redirect` to `com.amazon.tv.launcher`, preserves its selected dock and keeps normal upstream behavior switches at their defaults. Settings routing is upstream's existing `SystemSettings` implementation and `settings_fallback_components`; no extra vendor exclusion or `settings_stub_components` key remains. See the [keys table](themes/README.md#keys). The optional `top_bar_apps` list stays empty in this fork's default configuration; the generic action-selection fix does not add a button or affect ordinary HOME behavior.
 
 **Do not run upstream `launcher/build-and-install.sh` on this stick:** its default-HOME handover is unsupported on Fire OS. This fork does not publish a general installer or permission-grant recipe. Deployment needs an explicitly selected, inspected device, checksum/signature checks and physical HOME/native-settings checks. Keep Amazon Home enabled and do not copy another person's ADB keys. ADB, if intentionally left enabled, is plaintext on the local network; never expose it to the Internet.
 
@@ -76,4 +82,4 @@ At the owner's request, **all those experiments were withdrawn**: companion/priv
 
 Use reviewed merges for published `firetv` history; do not reset personal changes, force-push or use a fork sync that discards them. Updating another branch does not update this one. No automatic installation.
 
-Upstream keeps Fire OS HOME takeover in showcase forks. General fixes should be submitted separately from device configuration and HOME interception. Public screenshots for a showcase entry must be captured with permission and checked for account/location information; none is fabricated or included here as a new physical test.
+Upstream keeps Fire OS HOME takeover in showcase forks. General fixes should be submitted separately from device configuration and HOME interception. The linked public screenshots were captured with the owner's permission and privacy-checked. They illustrate the stated configurations only; screenshots do not prove boot, playback or physical-remote behavior.
