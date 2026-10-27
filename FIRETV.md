@@ -11,7 +11,19 @@ This public fork's `firetv` branch adapts CleanYourTV for a **Fire TV Stick Lite
 
 Amazon Home stays enabled. No root, new network permission or target SDK downgrade. HDMI-CEC stays **ON**. The existing accessibility service observes window changes; it is not a shell helper or a local ADB client. The fork retains upstream power-on/standby options without silently enabling them.
 
-## What has actually been tested
+## Current approved release: Launcher 3.1
+
+The owner reported that the new build looks good and works after testing it on one personal stick, then explicitly approved it as the stable personal default and requested deployment to a second stick. The same APK was installed on both, with installed-file SHA256 verified:
+
+```text
+029af470f2a9e7c5cbfdc5e7e5ed8c5693c3fbe6479b51cfafbfaf6ce059f567
+```
+
+Source: merge `766c5f39`, upstream through `6ffa7fa5`, tag `firetv-upstream-6ffa7fa5-v3.1`, version 3.1 / versionCode 10. All previous Fire TV resource values are preserved; six new entries retain upstream defaults. Build/lint and 274 JVM tests passed; 2035 repository Python tests passed (29 skipped). The original signing certificate was preserved. APKs and personal deployment records are kept separately, not in this public repository.
+
+Targeted ADB checks passed on both sticks: Home renders, native settings open, injected HOME returns, and configuration checks pass. The owner's positive feedback was general, not an itemized physical-test report. A fresh physical HOME/native-settings check on the second stick remains pending; no new reboot, playback/DRM or sleep/wake tests were performed. RTL+ Home flash remains an accepted known issue, not fixed. CEC stays ON and Amazon Home stays enabled. No withdrawn early-HOME experiment was restored. RC1 is now a historical fallback, not the current stable default.
+
+## Historical RC1 checks and diagnosis
 
 The first saved source is tagged `firetv-setup-v1`. Upstream changes through `575d73f0` were subsequently merged; the RC1 release was installed on the physical stick and restored after later experiments. Its installed APK checksum matched the pinned RC1 release:
 
@@ -79,7 +91,7 @@ At the owner's request, **all those experiments were withdrawn**: companion/priv
 - Fork: [bearylabs/cleanyourtv, `firetv`](https://github.com/bearylabs/cleanyourtv/tree/firetv)
 - Original: [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv)
 - Original base: `eb0131a32fd8567086f39002f1782f7c1b078ca6`; latest source merge through `6ffa7fa5` (Launcher 3.1).
-- The 3.1 merge preserves all existing Fire TV resource values. Its six new configuration entries retain upstream defaults; additional power-on and long-HOME interception remain off. Build, lint and 274 JVM tests passed. The new APK is 547,025 bytes and uses the original signing certificate. Physical device validation is pending; RC1 remains the separately pinned stable release. No RTL+ fix, reboot, playback or sleep/wake success is claimed.
+- The 3.1 merge preserves all existing Fire TV resource values. Its six new configuration entries retain upstream defaults; additional power-on and long-HOME interception remain off. The approved APK is 547,025 bytes and uses the original signing certificate. See the current release section above for device evidence and remaining physical-test limits. No RTL+ fix, reboot, playback or sleep/wake success is claimed.
 
 Use reviewed merges for published `firetv` history; do not reset personal changes, force-push or use a fork sync that discards them. Updating another branch does not update this one. No automatic installation.
 
