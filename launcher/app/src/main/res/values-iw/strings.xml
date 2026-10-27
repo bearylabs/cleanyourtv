@@ -10,6 +10,7 @@
     <string name="not_connected">אין מכשיר</string>
     <string name="live_tv">שידור חי</string>
     <string name="no_inputs">לא נמצאו כניסות</string>
+    <string name="more_inputs">עוד כניסות</string>
     <string name="good_morning">בוקר טוב</string>
     <string name="good_afternoon">צהריים טובים</string>
     <string name="good_evening">ערב טוב</string>
@@ -87,6 +88,7 @@
     <string name="quick_apps">אפליקציות</string>
     <string name="quick_apps_hint">הפעלת אפליקציות שהושבתו</string>
     <string name="dock_edit">עריכת שורת המועדפים</string>
+    <string name="power_menu">הפעלה מחדש…</string>
     <string name="dock_edit_hint">בחרו מקום בשורת המועדפים ולחצו אישור. חזרה לסיום.</string>
     <string name="dock_edit_pick_app">עכשיו בחרו את האפליקציה שתופיע שם ולחצו אישור. חזרה לבחירת מקום אחר.</string>
     <string name="tile_add_to_dock">הוספה לשורת המועדפים</string>

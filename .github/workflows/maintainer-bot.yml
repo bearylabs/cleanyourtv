@@ -48,12 +48,12 @@ jobs:
     steps:
       - id: day
         run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: .maintainer-bot
           key: maintainer-bot-ledger-${{ steps.day.outputs.day }}-${{ github.run_id }}
           restore-keys: maintainer-bot-ledger-${{ steps.day.outputs.day }}-
-      - uses: Gathin23/maintainer-bot@794dd7e86815c63b04e82be2c4fb8494b2af25c8 # maintainer-bot: tv.json lists, pinned
+      - uses: Gathin23/maintainer-bot@234fba6b795ff34b461918cfd271b14c7afdce81 # maintainer-bot: tv.json lists, UTM-tagged 0G links, pinned
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           og-pc-api-key: ${{ secrets.OG_PC_API_KEY }}

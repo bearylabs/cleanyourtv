@@ -60,9 +60,11 @@
 # - com.hisense.tv.dlna, Hisense's DLNA renderer, listens on ports 38400 and 39500. Disabled, it closed
 #   them only after a reboot; until then the port stayed open, even after am force-stop. AirPlay (7000)
 #   and the Google TV remote service (6466/6467) are separate and kept working.
-# - With launcherx disabled, Settings > Privacy > Usage & diagnostics opens nothing (focus goes to
-#   frameworkpackagestubs' SettingsPrivacyStub), probably because the page lived in the Google TV home;
-#   not checked with launcherx re-enabled. Set it before the launcher swap.
+# - With setupwraith and launcherx disabled, Settings > Privacy > Usage & diagnostics opens nothing (focus
+#   goes to frameworkpackagestubs' SettingsPrivacyStub). The page is setupwraith's, not the Google TV
+#   home's: on a Chromecast with Google TV 4K (Google TV 14) only setupwraith answers it
+#   (README, "Are there switches in the TV's own Settings worth flipping too?"); not checked on this set. Set it before
+#   this list disables setupwraith.
 # - Private DNS (dns.adguard-dns.com) works; YouTube and the streaming apps still play.
 
 # Retail / store demo

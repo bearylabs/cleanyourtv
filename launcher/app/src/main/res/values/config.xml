@@ -134,7 +134,7 @@
     <!-- Vendor source numbers for the Inputs menu, "HW<n>=<number>" by the framework input id's last part
          (`tools/tv.py 'dumpsys tv_input'` lists them). A mapped input opens by sending input_action with the
          number as the int extra "input"; "HW<n>=-" leaves a port the board reports but the set does not have
-         out of the menu. Xiaomi/Redmi China firmware (MiTV-MFTP0) needs input_action
+         out of the menu. A theme can set the same list. Xiaomi/Redmi China firmware (MiTV-MFTP0) needs input_action
          com.xiaomi.mitv.tvplayer.EXTSRC_PLAY and MStar numbers: HW5=23, HW6=24, HW7=25, HW8=-, HW2=2,
          HW3=-, HW4=- (see examples/redmi-mitv-mftp0). Leave empty to omit. -->
     <string-array name="input_sources" translatable="false">
@@ -195,10 +195,17 @@
          TvInputHardwareInfo). An action word in place of a package runs that action instead: back, home, recents,
          mute (toggles the sound, with the TV's volume bar), sleep (standby, Android 9 and later), screensaver (the
          one chosen in the TV's settings, or the launcher's clock), settings or wifi; e.g. KEYCODE_PROG_YELLOW:mute
-         and hold:KEYCODE_PROG_YELLOW:sleep. Prefix an entry with "hold:" for the same button's long press:
+         and hold:KEYCODE_PROG_YELLOW:sleep. "package/.Activity" opens that activity instead of the app's launcher
+         entry, e.g. hold:191:io.github.maxhayim.brightness/.QuickActivity for an add-on's quick bar. Prefix an
+         entry with "hold:" for the same button's long press:
          "hold:KEYCODE_BUTTON_8:org.xbmc.kodi" opens Kodi when held for half a second, while the unprefixed entry
          still opens on a tap; "hold:scan:490:..." works for scancodes. A key with only a hold entry does nothing
-         on a tap. A listed app that is not installed leaves the button doing nothing. Leave empty to omit. -->
+         on a tap. A listed app that is not installed leaves the button doing nothing. Prefix an entry with "front:"
+         for what a tap does while the button's own app is already in front (HOME_KEY_SERVICE=1), and use
+         "guide:<package>" as a target to open that Live TV app's program guide: "172:com.vt.tv.tvcenter" with
+         "front:172:guide:com.vt.tv.tvcenter" makes the Hisense hengshan Live TV button open Live TV, then its guide,
+         where the firmware hands KEYCODE_GUIDE (172) to the stock launcher and no app ever receives it. Leave empty
+         to omit. -->
     <string-array name="app_keys" translatable="false">
     </string-array>
 
@@ -215,15 +222,33 @@
          to the user, so opening Live TV on purpose is never undone. The opposite of boot_to_live_tv, and ignored
          when that is on. A theme's config.json can set it too. Off by default. -->
     <bool name="power_on_home">false</bool>
+    <!-- Home at every power-on, whatever the firmware put in front (the last HDMI input, Live TV or an app),
+         for TVs that come back to the last source, like Philips. Needs HOME_KEY_SERVICE=1; a key pressed first
+         wins. Ignored with boot_to_live_tv or an Open on start app. Can also be set with "power_on_home_always". -->
+    <bool name="power_on_home_always">false</bool>
+
+    <!-- Every press of the remote's Home button opens this launcher, a held one too. Android turns a Home press held
+         past the long-press timeout (400 ms) into its long-press action; on Android TV that is ALL_APPS, sent to the
+         system-image launcher, and with the stock launcher disabled nothing answers it, so a firm press on a slow
+         remote does nothing (Philips TPM191E, Android 12). The long_press_timeout setting does not move that limit
+         there. HomeKeyService (HOME_KEY_SERVICE=1) then takes the Home key itself and opens Home on release. Needs
+         key_filter, so held keys such as Volume Up/Down stop repeating (confirmed on that Philips; single presses
+         still step). A theme's config.json can set it too. Off by default. -->
+    <bool name="home_long_press_home">false</bool>
 
     <!-- Show the Solar Hijri (Shamsi) date used in Iran and Afghanistan, e.g. "27 Mehr 1405", above the
          Gregorian date. -->
     <bool name="shamsi_date">false</bool>
-    <!-- Lunisolar (Vietnamese / Chinese) date under the date; config.json lunar_date, lunar_utc_offset (7 or 8, default by locale). -->
+    <!-- Lunisolar (Vietnamese / Chinese / Korean) date under the date; config.json lunar_date, lunar_utc_offset (7, 8 or 9, default by locale). -->
     <bool name="lunar_date">false</bool>
     <!-- The date (with the Shamsi and lunar lines) on its own line under the clock instead of beside it, for a top bar
          whose pills leave the date too little room. Can also be set with "date_below_clock" in a theme. -->
     <bool name="date_below_clock">false</bool>
+    <!-- The language the launcher shows itself in, as a language tag ("vi", "pt-BR", "ar-EG-u-nu-latn"
+         for Arabic with Western digits), instead of the TV's. For firmware
+         that has no menu entry for the owner's language although the launcher is translated into it (a China-market
+         Xiaomi offers Chinese and English only). Empty, the default, follows the TV. A theme can set it ("locale"). -->
+    <string name="locale" translatable="false"></string>
 
     <!-- A name after the greeting: "Mr. Trịnh" shows GOOD MORNING, MR. TRỊNH. Empty: the greeting alone. -->
     <string name="greeting_name" translatable="false"></string>
@@ -236,6 +261,14 @@
          VPN you use. Empty: the pill opens Wi-Fi settings. The green VPN badge shows for any VPN either way;
          with an app set here, a red "VPN off" badge also shows while no VPN is up. -->
     <string name="vpn_app" translatable="false"></string>
+    <!-- The VPN as its own pill after the network pill, instead of a badge inside it: solid green with a lock while a
+         VPN is up, solid red "VPN off" while none is and vpn_app is installed. Pressing it opens vpn_app (without it,
+         the App library, or VPN settings when app_library is off), and the network pill then always opens Wi-Fi
+         settings. Hidden while no VPN is up and vpn_app is empty or not installed, and with top_menu. It keeps its
+         label with icon_only_buttons, since the red state has no icon. A VPN app's kill switch keeps a VPN up while
+         the app says disconnected (it holds the tunnel to block traffic), so the pill stays green then. Can also be
+         set with "vpn_pill" in a theme. -->
+    <bool name="vpn_pill">false</bool>
     <!-- The dock as its own row: a lighter band, no names under the tiles, parked low on the screen with the top
          shelf above it. false makes the dock apps simply the first tiles of one plain grid (still in dock_apps
          order, no empty slots), with names under every tile and the glow behind every focused tile. -->
@@ -299,6 +332,12 @@
     <!-- The Inputs pill in the top bar, shown when the TV has inputs to list. false hides it for good; what the
          remote's Input button does is unchanged. Can also be set with "show_inputs_pill" in a theme. -->
     <bool name="show_inputs_pill">true</bool>
+    <!-- The Inputs list shows only HDMI ports and CEC devices that report connected. Empty ports, devices asleep in
+         standby (some TVs, TCL among them, report an empty HDMI port as connected-standby, the same state a
+         sleeping device has) and the AV jacks fold behind a "More inputs" row that expands the rest. An HDMI row
+         whose state the TV cannot be trusted with stays. Off by default: every input is listed. Can also be set
+         with "inputs_connected_only" in a theme. -->
+    <bool name="inputs_connected_only">false</bool>
     <!-- Names under every tile, not only the focused one: unfocused names stay dimmed, the focused one is full white.
          With dock_row the band grows down to hold the dock's names too. -->
     <bool name="always_show_names">false</bool>
@@ -446,4 +485,8 @@
          faint outer glow), rim (the crisp rim alone, no sheen, fill or glow, for a quiet focus over a wallpaper) or
          halo (the rim with a lighter outer glow). Can also be set with "glass_style": "rim" in a theme's config.json. -->
     <string name="glass_style" translatable="false">glass</string>
+
+    <!-- Tiles drawn from the app's icon and name instead of its banner (for banners that crop badly). -->
+    <string-array name="icon_tiles" translatable="false">
+    </string-array>
 </resources>

@@ -8,11 +8,13 @@
 A firmware update re-enables listed packages, hands Home back to the stock launcher and adds new
 preloads, and nothing in this repo notices: nobody runs disable.sh again, and restore.sh would undo
 the cleanup instead of redoing it. This command compares the TV with the list and exits 1 when the
-TV drifted, so it fits a cron job; --fix applies the list again without touching the recovery
-record (the packages were already recorded before the first run, so undo still means undo).
+TV drifted, so it fits a cron job; --fix applies the list again. It never writes a recovery record of
+its own (a record of the TV after cleanup would make undo leave the whole list disabled), but when
+this TV and list have one, it first adds what disable.sh would: the names the list gained since then,
+and a package the record calls absent that is installed and enabled now. Undo then still means undo.
 
-It reads the list, not the record: the record holds what the TV looked like *before* cleanup, which
-is what restore needs, while the target here is the list itself.
+It compares the TV with the list, not the record: the record holds what the TV looked like *before*
+cleanup, which is what restore needs, while the target here is the list itself.
 
 --fix runs the same safety checks as disable.sh before it disables anything (the Wi-Fi network
 setupwraith owns, the packages under the HDMI/AV inputs), because a firmware update is exactly the
@@ -22,8 +24,10 @@ owns, and a fix that skipped the checks would take that TV off Wi-Fi with no way
 Exit codes: 0 in sync (or fixed), 1 drift, an incomplete fix, or packages a safety check left on,
 2 the TV or the list could not be read, which includes ADB timing out or failing partway (after which a
 --fix may be partial, and the next check says what is left), or the command line asked for something this
-script does not do. That last one matters: README.md tells an owner to run this from a weekly job and hear
-about it on exit 1, so a mistyped flag must not come back as drift.
+script does not do, which includes naming a launcher the TV does not have. That last one matters:
+README.md tells an owner to run this from a weekly job and hear about it on exit 1, so a mistyped flag
+must not come back as drift, nor a mistyped launcher as "nothing drifted". A recovery record --fix
+cannot read or update is 2 as well, with nothing changed on the TV.
 """
 import os
 import re
@@ -60,6 +64,10 @@ INPUT_PERMISSION = "android.permission.TV_INPUT_HARDWARE"
 # otherwise match through its shared user's permissions, the same reason disable.sh scopes its grep.
 REQUESTED_RE = re.compile(r"requested permissions:(.*?)"
                           r"(?:\n\s*(?:install|runtime) permissions:|\n\s*User \d+:|$)", re.S)
+# Lollipop's dumpsys package prints no "requested permissions:" block, only the package's own
+# "grantedPermissions:" (#1753): the fallback disable.sh reads when the requested block is absent.
+GRANTED_RE = re.compile(r"grantedPermissions:(.*?)"
+                        r"(?:\n\s*(?:install|runtime) permissions:|\n\s*User \d+:|$)", re.S)
 HOME_QUERY = ("cmd package resolve-activity --brief -a android.intent.action.MAIN "
               "-c android.intent.category.HOME")
 CLAIMS_QUERY = ("cmd package query-activities --brief -a android.intent.action.MAIN "
@@ -90,7 +98,9 @@ def launcher_to_use(dev, listed, preferred=None):
     if preferred:
         if not recovery.PACKAGE_RE.fullmatch(preferred):
             raise SystemExit(f"not a package name: {preferred!r}")
-        match = [c for c in home_activities(dev) if home_of(c) == preferred]
+        # A package can register a FallbackHome next to its real Home; only the real one will do.
+        match = [c for c in home_activities(dev)
+                 if home_of(c) == preferred and not FALLBACK_HOME_RE.search(c)]
         if not match:
             raise SystemExit(f"{preferred} has no HOME activity on this TV: is the launcher "
                              f"installed? (launcher/build-and-install.sh)")
@@ -162,9 +172,22 @@ def setupwraith_owns_wifi(dev):
 
 
 def asks_for_input_hardware(dev, name):
-    """Whether the package itself asks for TV_INPUT_HARDWARE, i.e. it drives the HDMI/AV inputs."""
-    block = REQUESTED_RE.search(recovery.shell(dev, f"dumpsys package {name}"))
-    return bool(block and INPUT_PERMISSION in block.group(1))
+    """Whether the package itself asks for TV_INPUT_HARDWARE, i.e. it drives the HDMI/AV inputs.
+
+    True or False from a dump that can be read; None when the dump shows neither a requested nor a
+    granted permission block, so the check could not run — Android 5.x prints neither (#1753)."""
+    dump = recovery.shell(dev, f"dumpsys package {name}")
+    block = REQUESTED_RE.search(dump)
+    if block:
+        return INPUT_PERMISSION in block.group(1)
+    granted = GRANTED_RE.search(dump)
+    if granted:
+        return INPUT_PERMISSION in granted.group(1)
+    if "Service Resolver Table:" in dump:
+        # Lollipop's per-package dump has no permission block but lists what serves the input
+        # service: the decisive check the requested-permission grep stands in for.
+        return "android.media.tv.TvInputService" in dump
+    return None
 
 
 def handler_apps(dev):
@@ -201,7 +224,15 @@ def safety_checks(dev, names):
         for name in names:
             if any(name == skipped_name for skipped_name, _ in skipped):
                 continue
-            if asks_for_input_hardware(dev, name):
+            hw = asks_for_input_hardware(dev, name)
+            if hw is None:
+                # Fail closed, the same as disable.sh: a dump this firmware cannot be read from
+                # keeps the package on (#1753), and the owner is told what it costs.
+                skipped.append((name, "could not check whether it drives the HDMI/AV inputs (the "
+                                      "TV's dumpsys shows neither permission block, as Android 5.x "
+                                      "prints neither): it stays enabled; set TVINPUT_ALLOW=1 to "
+                                      "disable it once every input still works after a reboot"))
+            elif hw:
                 skipped.append((name, "it asks for android.permission.TV_INPUT_HARDWARE, so it is "
                                       "the software layer under the HDMI/AV/tuner inputs: with it "
                                       "disabled those ports stay black and only a full restore and "
@@ -209,6 +240,12 @@ def safety_checks(dev, names):
                                       "it)"))
     if not os.environ.get("HANDLERS_ALLOW") and any(n not in {k for k, _ in skipped} for n in names):
         inputs, settings = handler_apps(dev)
+        if not settings and not inputs:
+            # A working query always has some app answering android.settings.SETTINGS; an empty
+            # answer means the firmware has no `cmd`, and the guard below would pass in silence.
+            print("  could not check which listed packages open the TV's inputs and Settings: the "
+                  "query answered with nothing (this firmware may have no 'cmd'); open an HDMI "
+                  "input and Settings from the launcher after --fix")
         for name in names:
             if any(name == skipped_name for skipped_name, _ in skipped):
                 continue
@@ -237,11 +274,13 @@ def fix(dev, listed, back_on, home_drifted, preferred):
         recovery.shell(dev, f"cmd package set-home-activity --user 0 {target}")
         home = recovery.query_home(dev)
         if home != target:
+            # Stop here, as the comment above says: Home is still on what it was, which may be a
+            # package this list disables, and disabling it now leaves the TV with setupwraith's
+            # RecoveryActivity or a placeholder for Home (#1573).
             print(f"Home: asked for {target} but the TV still resolves {home or 'nothing'}; "
-                  f"reboot it and check again")
-            failed = True
-        else:
-            print(f"Home: set to {target}")
+                  f"nothing was disabled. Reboot it and check again")
+            return 1
+        print(f"Home: set to {target}")
     left_on = []
     if back_on:
         left_on = safety_checks(dev, back_on)
@@ -288,6 +327,17 @@ def main():
         return 2
     list_path = args[0]
     preferred = args[1] if len(args) == 2 else None
+    # The launcher package is judged here as well, not only in launcher_to_use, which runs under
+    # --fix and only once Home has drifted. A second argument that is no installed package turns the
+    # Home check off (expected_launcher has nothing to compare Home with), so a typo there, or the
+    # package/activity form the report prints Home in, came back as "nothing drifted", exit 0.
+    if preferred and not recovery.PACKAGE_RE.fullmatch(preferred):
+        if "/" in preferred and recovery.PACKAGE_RE.fullmatch(home_of(preferred)):
+            why = f"{preferred} is a Home activity, not a package: pass {home_of(preferred)}"
+        else:
+            why = f"not a package name: {preferred!r}"
+        sys.stderr.write(f"check.py: {why}\n{USAGE}")
+        return 2
     # read_list validates every name before anything is sent to the TV: its entries end up in the
     # TV's shell, and a list edited by hand since then is not to be trusted.
     try:
@@ -298,6 +348,24 @@ def main():
         sys.stderr.write(f"could not read {list_path} ({e.strerror or e}). Nothing was checked or changed: "
                          f"pass the debloat list this TV was cleaned with, e.g. "
                          f"examples/<your tv>/debloat.txt.\n")
+        return 2
+    except SystemExit as e:
+        # The same for a line that is not a package name and for a list with every line commented
+        # out: read_list stops with a message, which Python turns into exit 1.
+        sys.stderr.write(f"{e}. Nothing was checked or changed.\n")
+        return 2
+    # The launcher argument has to be a Home the TV can stay on: not one this list disables (--fix would
+    # set Home to it and then disable it), and none of what answers HOME without being a launcher. With
+    # `check.py --fix <list> com.google.android.tungsten.setupwraith`, --fix set Home to setupwraith's
+    # RecoveryActivity and called it fixed (#1573).
+    if preferred and (preferred in listed or preferred in NOT_LAUNCHERS
+                      or FACTORY_HOME_RE.search(preferred)):
+        why = ("this list disables it" if preferred in listed else
+               "it answers Home without being a launcher (a setup wizard, a settings app or a "
+               "factory test)")
+        sys.stderr.write(f"check.py: {preferred} cannot be the launcher Home is on: {why}. Pass the "
+                         f"launcher Home should stay on, or no launcher at all. Nothing was checked "
+                         f"or changed.\n")
         return 2
     core = recovery.core_packages(listed)
     if core:
@@ -313,7 +381,8 @@ def main():
     # partway, and AdbTimeoutError and DeviceAuthError. Left alone they end the run with a traceback
     # and exit 1, which a cron job reads as drift, so every Exception here is exit 2, the TV could
     # not be read. SystemExit and KeyboardInterrupt are not Exceptions: tv.py's own exits (TV_HOST
-    # unset), the refusals in recovery.py and in this file, and Ctrl-C still stop the run as before.
+    # unset), the refusals in recovery.py and in this file once --fix has started, and Ctrl-C still
+    # stop the run as before.
     probe = "tools/venv/bin/python -I tools/tv.py --probe"
     try:
         dev = recovery.connect()
@@ -329,11 +398,42 @@ def main():
         return 2
     fixing = False
     try:
-        _, _, home, back_on, gone, home_drifted, expected = inspect(dev, listed, preferred)
+        installed, disabled, home, back_on, gone, home_drifted, expected = inspect(dev, listed,
+                                                                                   preferred)
+        if preferred and preferred not in installed:
+            # The other half of the launcher check before the list was read: only the TV can say
+            # whether the package is there.
+            sys.stderr.write(f"{preferred} is not installed on this TV, so Home cannot be checked "
+                             f"against it; there is no report and nothing was changed. Check the "
+                             f"package name of the launcher Home should be on, and run this again.\n")
+            return 2
         code = report(list_path, listed, home, back_on, gone, home_drifted, expected)
         if code and wanted:
+            # restore.sh puts back only what the recovery record holds, so before anything is disabled,
+            # a record this TV and list already have gets the entries a second disable.sh run would add
+            # (recovery.extend_record). Without a record nothing is written: one taken now would hold
+            # the TV after cleanup. A record that cannot be used stops the run before anything reaches
+            # the TV, as it stops disable.sh.
+            path = recovery.find_record(list_path, os.environ.get("TV_HOST", ""))
+            if path.exists():
+                try:
+                    recovery.extend_record(path, recovery.load_record(path), listed, installed, disabled)
+                except OSError as e:
+                    sys.stderr.write(f"could not update the recovery record ({e}), so nothing was "
+                                     f"changed on the TV: without it, restore.sh would leave what "
+                                     f"--fix disables off.\n")
+                    return 2
             fixing = True
             code = fix(dev, listed, back_on, home_drifted, preferred)
+    except SystemExit as e:
+        # recovery.query_packages stops with its own message when the TV answers no package at all:
+        # the TV could not be read, so exit 2, not the 1 Python gives that message. find_record and
+        # load_record do the same for a recovery record --fix cannot use. Under --fix the exits keep
+        # their code, as above.
+        if fixing:
+            raise
+        sys.stderr.write(f"{e}\n")
+        return 2
     except Exception as e:
         why = f"{type(e).__name__}: {e}"
         if fixing:

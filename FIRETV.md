@@ -78,7 +78,8 @@ At the owner's request, **all those experiments were withdrawn**: companion/priv
 
 - Fork: [bearylabs/cleanyourtv, `firetv`](https://github.com/bearylabs/cleanyourtv/tree/firetv)
 - Original: [Gathin23/cleanyourtv](https://github.com/Gathin23/cleanyourtv)
-- Original base: `eb0131a32fd8567086f39002f1782f7c1b078ca6`; reviewed upstream merge through `575d73f0`.
+- Original base: `eb0131a32fd8567086f39002f1782f7c1b078ca6`; latest source merge through `6ffa7fa5` (Launcher 3.1).
+- The 3.1 merge preserves all existing Fire TV resource values. Its six new configuration entries retain upstream defaults; additional power-on and long-HOME interception remain off. Build, lint and 274 JVM tests passed. The new APK is 547,025 bytes and uses the original signing certificate. Physical device validation is pending; RC1 remains the separately pinned stable release. No RTL+ fix, reboot, playback or sleep/wake success is claimed.
 
 Use reviewed merges for published `firetv` history; do not reset personal changes, force-push or use a fork sync that discards them. Updating another branch does not update this one. No automatic installation.
 

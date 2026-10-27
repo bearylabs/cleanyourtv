@@ -10,6 +10,7 @@
     <string name="not_connected">Нет устройства</string>
     <string name="live_tv">Телеканалы</string>
     <string name="no_inputs">Источники не найдены</string>
+    <string name="more_inputs">Другие источники</string>
     <string name="good_morning">Доброе утро</string>
     <string name="good_afternoon">Добрый день</string>
     <string name="good_evening">Добрый вечер</string>
@@ -93,6 +94,7 @@
     <string name="off">Выкл.</string>
     <string name="enable">Включить</string>
     <string name="dock_edit">Изменить док</string>
+    <string name="power_menu">Перезагрузить…</string>
     <string name="dock_edit_hint">Выберите место в доке и нажмите ОК. Назад — готово.</string>
     <string name="dock_edit_pick_app">Теперь выберите приложение для этого места и нажмите ОК. Назад — выбрать другое место.</string>
     <string name="tile_add_to_dock">Добавить в док</string>

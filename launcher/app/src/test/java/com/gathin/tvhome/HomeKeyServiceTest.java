@@ -52,4 +52,9 @@ public class HomeKeyServiceTest {
     @Test public void offMeansNothing() {
         assertFalse(HomeKeyService.powerOnRedirect("", TV, SOON, HomeKeyService.BOOT_WINDOW_MS));
     }
+
+    @Test public void alwaysGoesHomeAfterScreenOnUntilAKey() {
+        assertTrue(HomeKeyService.stillArmed(SOON, SOON + HomeKeyService.SCREEN_ON_WINDOW_MS));
+        assertFalse(HomeKeyService.stillArmed(SOON, 0));
+    }
 }

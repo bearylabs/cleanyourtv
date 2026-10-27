@@ -23,7 +23,8 @@ this file repeats their rules in the form an agent needs, and links to them for 
   the input/source menu, remote and Bluetooth pairing, the on-screen keyboard, Play Store and Play
   Services. When a package name says nothing, read `dumpsys package <name>`, then ask.
 - **Never disable Android's core packages:** the permission controller, package installer, ext
-  services/shared and module metadata (`com.android.*` and `com.google.android.*`),
+  services/shared and module metadata (`com.android.*` and `com.google.android.*`; ext services/shared
+  also as the bare `android.ext.services` and `android.ext.shared`),
   `com.google.android.overlay.modules*`, `com.android.providers.*` (calendar, contacts, user dictionary
   and blocked numbers aside), `com.android.systemui`, `com.android.shell`, `com.android.phone`,
   `com.android.settings`, `com.android.tv.settings`, `android`. Without them Android may not boot (#884);
@@ -47,11 +48,19 @@ this file repeats their rules in the form an agent needs, and links to them for 
   Live TV, HDMI and some streaming apps give empty screenshots; that is the TV, not damage.
 - **An injected key is not proof** for a remote button that goes through an accessibility helper: ask the
   person to press the real button. `am force-stop com.gathin.tvhome` switches those helpers off.
-- **Close ADB afterwards.** USB debugging and Network/ADB debugging off, authorisations revoked, reboot,
-  then `tools/adb-closed.py <tv ip>` must report the port closed. Port 5555 is plaintext.
+- **Close ADB afterwards.** Wireless debugging and Network/ADB debugging off, and USB debugging unless
+  the person asks to keep it; authorisations revoked. Wireless debugging has its own port
+  (`adb mdns services` lists it as `_adb-tls-connect._tcp`): check it with
+  `tools/adb-closed.py <tv ip> <port>` straight after switching it off, before the reboot, as it takes
+  a new port each start. Then reboot: `tools/adb-closed.py <tv ip>` must report 5555 closed, with
+  Wireless debugging still off. If 5555 still answers with USB debugging kept on, switch that off too.
+  Only the tool's "closed" counts. Port 5555 is plaintext.
 - **Stop and say so** when the TV refuses: `pm disable-user` refused for every package, a sideload that
   fails verification, or an SDK below the launcher's `minSdk` 26. Do not retry in a loop, and do not lower
   `minSdk` or hand over an APK built elsewhere.
+- **Not an Android TV?** No ADB port at all, or the set identifies as Tizen, webOS, Roku OS, VIDAA or
+  SmartCast: stop, nothing here applies. Send the person to https://cleanyour.tv/not-android, which turns
+  off the tracking with the remote.
 
 The person's backups (`backup/`), screenshots (`shots/`), notes (`work/`) and the ADB key
 (`tools/adbkey/`) are listed in `.gitignore` and must never be committed. If the person wants to
@@ -115,7 +124,7 @@ use it and ends with the check to run.
 
 | Check | Command or rule |
 |---|---|
-| Tests, as CI runs them | `python3 -m unittest discover -s tests -v` after `python3 -m venv tools/venv` and `tools/venv/bin/pip install -r tools/requirements.txt`. On `main`, CI sets `CLEANYOURTV_STRICT=1`, and its "README tables" job checks that the TV tables and counts are what `tools/gen_tables.py` writes. |
+| Tests, as CI runs them | `tools/venv/bin/python -m unittest discover -s tests -v` after `python3 -m venv tools/venv` and `tools/venv/bin/pip install -r tools/requirements.txt`. On `main`, CI sets `CLEANYOURTV_STRICT=1`, and its "README tables" job checks that the TV tables and counts are what `tools/gen_tables.py` writes. On Windows the suites that drive `tools/*.sh` report as skipped: they need a POSIX shell, and CI runs them. |
 | Launcher, if you touched `launcher/` | JDK 17, Android SDK platform 34, build-tools 34.0.0. In `launcher/`: `./gradlew --no-daemon testReleaseUnitTest lintRelease assembleRelease`. Lint must stay at zero errors. |
 | APK size gate | `launcher/app/build/outputs/apk/release/app-release.apk` must be under 589,824 B (576 KB). Linux: `stat -c %s`, macOS: `stat -f %z`. |
 | README rows | A new list adds only its folder, with a `tv.json`: the TV tables, the brand line and the counts are generated after merging, so leave them alone. A theme has its row in `themes/README.md`; an add-on in `addons/README.md`. |

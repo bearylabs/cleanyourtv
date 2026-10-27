@@ -10,6 +10,7 @@
     <string name="not_connected">Sem dispositivo</string>
     <string name="live_tv">TV ao vivo</string>
     <string name="no_inputs">Nenhuma entrada encontrada</string>
+    <string name="more_inputs">Mais entradas</string>
     <string name="good_morning">Bom dia</string>
     <string name="good_afternoon">Boa tarde</string>
     <string name="good_evening">Boa noite</string>
@@ -67,6 +68,7 @@
     <string name="card_state_new_key">Nova chave</string>
     <string name="card_state_new_label">Novo nome</string>
     <string name="dock_edit">Editar o dock</string>
+    <string name="power_menu">Reiniciar…</string>
     <string name="dock_edit_hint">Escolha o lugar do dock que quer mudar e pressione OK. Voltar para terminar.</string>
     <string name="dock_edit_pick_app">Agora escolha o app para colocar lá e pressione OK. Voltar para escolher outro lugar.</string>
     <string name="tile_add_to_dock">Adicionar ao dock</string>

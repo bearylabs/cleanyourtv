@@ -6,6 +6,11 @@ run must therefore not come back as 1: `check.py --help` - the first thing a rea
 they do not know - was taken as a list named `--help` and ended in a FileNotFoundError traceback with
 exit 1, and a flag typed where the launcher package goes reached set-home-activity as a package name.
 
+The same goes for what the command line points at. A list check.py cannot use, a launcher package the
+TV does not have and a TV that answers no packages are exit 2 too. The launcher one was worse than exit
+1: a typo there turned the Home check off, so Home on the wrong launcher came back as "nothing drifted",
+exit 0, and a weekly job stayed quiet.
+
 Run from the repository root: python3 -m unittest discover -s tests -v
 """
 import json
@@ -23,6 +28,8 @@ from test_drift_check import FAKE_TV  # noqa: E402  (the simulated TV check.py a
 ROOT = Path(__file__).resolve().parents[1]
 STOCK = "com.google.android.tvlauncher"
 CUSTOM = "com.gathin.tvhome"
+# Google TV's stock launcher, which the list leaves out: build-and-install.sh disables it instead.
+LAUNCHERX = "com.google.android.apps.tv.launcherx"
 
 
 def collapsed(text):
@@ -155,9 +162,97 @@ class CheckCommandLineTest(unittest.TestCase):
         result = self.run_check(str(self.base))
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertIn("could not read", result.stderr)
-        self.assertIn("Is a directory", result.stderr)
+        # POSIX refuses a directory outright ("Is a directory"); Windows reports the same refusal as
+        # a permission error, since opening a directory is not a read that can start there.
+        self.assertTrue("Is a directory" in result.stderr or "denied" in result.stderr.lower(),
+                        result.stderr)
         self.assertNotIn("Traceback", result.stderr)
         self.assertEqual(self.sent(), [])
+
+    def test_a_list_with_every_line_commented_out_is_not_drift(self):
+        # CONTRIBUTING has untested entries commented out, so a list can be all comments.
+        self.list_path.write_text("# My TV\n# com.example.music   untested\n")
+        self.tv()
+        result = self.run_check(str(self.list_path))
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("no package names in this list", result.stderr)
+        self.assertIn("Nothing was checked or changed", result.stderr)
+        self.assert_untouched(result)
+
+    def test_a_line_that_is_no_package_name_is_not_drift(self):
+        # A curly quote from a word processor, in a report-only run as the weekly job makes it.
+        self.list_path.write_text("# My TV\ncom.example.music\n“com.example.store”\n")
+        self.tv()
+        result = self.run_check(str(self.list_path))
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("debloat.txt:3: not a package name", result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assert_untouched(result)
+
+    def drifted_home(self, **overrides):
+        """A firmware update gave Home back to launcherx, which the list does not name."""
+        state = {"installed": ["com.example.music", "com.example.store", STOCK, CUSTOM, LAUNCHERX],
+                 "home": f"{LAUNCHERX}/.home.HomeActivity",
+                 "home_activities": [f"{LAUNCHERX}/.home.HomeActivity", f"{CUSTOM}/.MainActivity"]}
+        self.tv(**dict(state, **overrides))
+
+    def test_a_launcher_that_is_not_installed_is_refused_not_ignored(self):
+        self.drifted_home()
+        named = self.run_check(str(self.list_path), CUSTOM)
+        self.assertEqual(named.returncode, 1, named.stdout + named.stderr)
+        self.assertIn(f"Home is {LAUNCHERX}/.home.HomeActivity, not {CUSTOM}", named.stdout)
+        # One letter short: it used to turn the Home check off and report "nothing drifted", exit 0.
+        typo = self.run_check(str(self.list_path), "com.gathin.tvhom")
+        self.assertEqual(typo.returncode, 2, typo.stdout + typo.stderr)
+        self.assertIn("com.gathin.tvhom is not installed on this TV", typo.stderr)
+        self.assertNotIn("nothing drifted", typo.stdout)
+        self.assert_untouched(typo)
+
+    def test_fix_with_a_launcher_that_is_not_installed_changes_nothing(self):
+        self.drifted_home()
+        result = self.run_check("--fix", str(self.list_path), "com.gathin.tvhom")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("is not installed on this TV", result.stderr)
+        self.assert_untouched(result)
+
+    def test_a_home_activity_names_the_package_to_pass(self):
+        # "Home is <package>/<activity>" is how the report prints Home, so that is what gets copied.
+        # Refused before the TV is reached: an unreachable TV would say so.
+        self.drifted_home(unreachable=True)
+        for args in ((str(self.list_path), f"{CUSTOM}/.MainActivity"),
+                     ("--fix", str(self.list_path), f"{CUSTOM}/.MainActivity")):
+            with self.subTest(args=args):
+                result = self.run_check(*args)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn(f"is a Home activity, not a package: pass {CUSTOM}", result.stderr)
+                self.assertIn("usage: check.py", result.stderr)
+                self.assertNotIn("could not reach the TV", result.stderr)
+                self.assert_untouched(result)
+
+    def test_a_launcher_with_shell_syntax_never_reaches_the_tv(self):
+        self.drifted_home()
+        result = self.run_check("--fix", str(self.list_path), f"{CUSTOM};reboot")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn(f"not a package name: '{CUSTOM};reboot'", result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assert_untouched(result)
+
+    def test_an_installed_stock_launcher_can_still_be_named(self):
+        # The stock_home_redirect case README.md gives: the stock launcher stays Home on purpose.
+        self.list_path.write_text("# My TV\ncom.example.music\ncom.example.store\n")
+        self.drifted_home()
+        result = self.run_check(str(self.list_path), LAUNCHERX)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"nothing drifted: 2 listed packages are still disabled and Home is {LAUNCHERX}/",
+                      result.stdout)
+
+    def test_a_tv_that_answers_no_packages_is_not_drift(self):
+        self.tv(installed=[], disabled=[])
+        result = self.run_check(str(self.list_path))
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("the TV returned no packages", result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assert_untouched(result)
 
     def test_no_argument_still_exits_2_with_the_usage(self):
         self.tv()

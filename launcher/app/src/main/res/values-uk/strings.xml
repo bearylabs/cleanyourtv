@@ -10,6 +10,7 @@
     <string name="not_connected">Немає пристрою</string>
     <string name="live_tv">Телеканали</string>
     <string name="no_inputs">Джерел не знайдено</string>
+    <string name="more_inputs">Інші джерела</string>
     <string name="good_morning">Доброго ранку</string>
     <string name="good_afternoon">Добрий день</string>
     <string name="good_evening">Добрий вечір</string>
@@ -92,6 +93,7 @@
     <string name="card_state_new_key">Новий ключ</string>
     <string name="card_state_new_label">Нова назва</string>
     <string name="dock_edit">Редагувати док</string>
+    <string name="power_menu">Перезапустити…</string>
     <string name="dock_edit_hint">Виберіть місце в доку, яке треба змінити, і натисніть OK. «Назад» — завершити.</string>
     <string name="dock_edit_pick_app">Тепер виберіть застосунок для цього місця та натисніть OK. «Назад» — вибрати інше місце.</string>
     <string name="tile_add_to_dock">Додати в док</string>

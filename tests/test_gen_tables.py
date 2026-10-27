@@ -3,8 +3,8 @@
 Every list PR used to add rows to the same two tables, so each merge made the other open list PRs conflict.
 Now a PR adds only its folder and the script writes the rows. These tests run it on this repository (running
 it twice changes nothing, both tables come out in the same alphabetical order) and on small trees written here
-(a new folder gets its rows, the brand line counts right, a bad tv.json is refused, an old-style PR's rows
-become a tv.json).
+(a new folder gets its rows, the brand line counts right, a bad tv.json is refused, a --font path given from
+another folder reaches the card scripts, an old-style PR's rows become a tv.json).
 
 Run from the repository root: python3 -m unittest discover -s tests -v
 """
@@ -12,6 +12,8 @@ import io
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -19,8 +21,10 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "tools"))
 import gen_tables  # noqa: E402  (needs tools/ on the path first)
+from test_card_font_argument import shadow_dir  # noqa: E402  (a PIL that cannot be imported)
 
 START = "<!-- {}:start: generated -->"
 END = "<!-- {}:end -->"
@@ -229,7 +233,10 @@ class GeneratorTest(unittest.TestCase):
                  (tv("X", "X", colour="red"), "unknown key"),
                  (tv("X", "X", notes="a | b"), "split the table cell"),
                  (tv("X\n", "X"), "one line"),
-                 (tv("X", "X", notes="[note](../docs/devices/none.md)"), "leads nowhere")]
+                 (tv("X", "X", notes="[note](../docs/devices/none.md)"), "leads nowhere"),
+                 # Not a string: refused by name, where the link check used to end in a TypeError (exit 1).
+                 (tv("X", "X", notes=["a", "b"]), '"notes" must be'),
+                 (tv(["X"], "X"), '"tv" must be')]
         for data, message in cases:
             with self.subTest(message=message), tempfile.TemporaryDirectory() as tmp:
                 root = tree(tmp, [("x-1", data)])
@@ -250,6 +257,28 @@ class GeneratorTest(unittest.TestCase):
             (root / "examples/README.md").write_text("# Examples\n", encoding="utf-8")
             with self.assertRaisesRegex(gen_tables.Problem, "tv-table:start"):
                 gen_tables.render(root)
+
+
+class FontTest(unittest.TestCase):
+    def test_a_font_path_from_another_folder_reaches_the_card_scripts(self):
+        # --font is checked from where the script is run, and the card scripts run in the checkout.
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "repo").mkdir()
+            root = tree(Path(tmp) / "repo", [("tcl-a", tv("TCL A", "TCL"))])
+            # The real script, whose counts this tree changes, so --font hands it the font.
+            shutil.copy(ROOT / "tools" / "readme_stats.py", root / "tools" / "readme_stats.py")
+            # A checkout has docs/, where the picture goes: the script names the folder it cannot find.
+            (root / "docs").mkdir()
+            caller = Path(tmp) / "caller"
+            caller.mkdir()
+            (caller / "Fredoka.ttf").write_bytes(b"")
+            (Path(tmp) / "no-pillow").mkdir()
+            env = dict(os.environ, PYTHONPATH=shadow_dir(Path(tmp) / "no-pillow"))
+            done = subprocess.run([sys.executable, str(ROOT / "tools" / "gen_tables.py"), "--root", str(root),
+                                   "--font", "Fredoka.ttf"], cwd=caller, env=env, capture_output=True, text=True)
+        self.assertNotIn("cannot open the font at", done.stderr, "the card script looked for the font in the checkout")
+        # Pillow is hidden, so the script stops at its Pillow line: it got past the font.
+        self.assertIn("needs Pillow", done.stderr, done.stderr)
 
 
 class AdoptTest(unittest.TestCase):
